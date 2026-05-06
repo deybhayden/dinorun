@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { DinosaurEnemy } from '../entities/DinosaurEnemy';
 import { Hero } from '../entities/Hero';
 
 const WORLD_WIDTH = 1920;
@@ -8,6 +9,7 @@ const GROUND_Y = 820;
 export class WorldScene extends Phaser.Scene {
   private readonly worldBounds = new Phaser.Geom.Rectangle(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
   private hero!: Hero;
+  private dinosaurs: DinosaurEnemy[] = [];
   private statusText!: Phaser.GameObjects.Text;
 
   constructor() {
@@ -17,9 +19,12 @@ export class WorldScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
+    this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
     this.createPlaceholderBackground();
     this.createTitleCard();
     this.createHero();
+    this.createDinosaurs();
     this.createHud();
 
     this.cameras.main.startFollow(this.hero, true, 0.12, 0.12);
@@ -27,11 +32,24 @@ export class WorldScene extends Phaser.Scene {
 
   update(time: number, delta: number) {
     this.hero.update(time, delta);
-    this.statusText.setText(`Hero: ${this.hero.movement}`);
+    this.dinosaurs.forEach((dinosaur) => dinosaur.update(time));
+
+    const dinosaurStatus = this.dinosaurs
+      .map((dinosaur, index) => `D${index + 1}: ${dinosaur.health}/${dinosaur.maxHealth} ${dinosaur.movement}`)
+      .join('  ');
+
+    this.statusText.setText(`Hero: ${this.hero.movement}  ${dinosaurStatus}`);
   }
 
   private createHero() {
     this.hero = new Hero(this, 480, 420, this.worldBounds);
+  }
+
+  private createDinosaurs() {
+    this.dinosaurs = [
+      new DinosaurEnemy(this, 860, 505, { maxHealth: 3, movementSpeed: 115, facing: -1 }),
+      new DinosaurEnemy(this, 1220, 710, { maxHealth: 4, movementSpeed: 95, facing: 1 }),
+    ];
   }
 
   private createPlaceholderBackground() {
@@ -77,7 +95,7 @@ export class WorldScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(480, 214, 'Use WASD or arrow keys to explore', {
+      .text(480, 214, 'Use WASD or arrow keys to explore. Avoid the dinosaurs.', {
         color: '#374151',
         fontFamily: 'Arial, sans-serif',
         fontSize: '20px',
@@ -98,7 +116,7 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(100);
 
     this.statusText = this.add
-      .text(16, 44, 'Hero: idle', {
+      .text(16, 44, 'Hero: idle  D1: 3/3 idle', {
         color: '#f9fafb',
         fontFamily: 'Arial, sans-serif',
         fontSize: '18px',
