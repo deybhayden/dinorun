@@ -49,6 +49,7 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
   private aiState: DinosaurAiState = 'patrol';
   private facing: -1 | 1;
   private hurtUntil = 0;
+  private removedFromPlay = false;
   private patrolIndex = 0;
   private waitingUntil = 0;
 
@@ -164,7 +165,9 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
 
   update(time: number, target?: Phaser.Types.Math.Vector2Like) {
     if (!this.isAlive) {
-      this.playDeadPose();
+      if (!this.removedFromPlay) {
+        this.playDeadPose();
+      }
       return;
     }
 
@@ -215,10 +218,20 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
     this.hurtUntil = this.scene.time.now + 220;
 
     if (!this.isAlive) {
-      this.arcadeBody.setVelocity(0, 0);
-      this.arcadeBody.enable = false;
-      this.setMovementState('dead');
+      this.defeat();
     }
+  }
+
+  private defeat() {
+    this.arcadeBody.setVelocity(0, 0);
+    this.arcadeBody.enable = false;
+    this.setMovementState('dead');
+
+    this.scene.time.delayedCall(650, () => {
+      this.removedFromPlay = true;
+      this.setActive(false);
+      this.setVisible(false);
+    });
   }
 
   private createPatrolPoints(x: number, y: number, patrolPoints?: Phaser.Types.Math.Vector2Like[]) {

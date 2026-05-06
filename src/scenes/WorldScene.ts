@@ -17,6 +17,7 @@ export class WorldScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private gameOverText!: Phaser.GameObjects.Text;
   private restartKey?: Phaser.Input.Keyboard.Key;
+  private attackHits = new Map<DinosaurEnemy, number>();
   private gameOver = false;
 
   constructor() {
@@ -47,6 +48,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.hero.update(time, delta);
     this.dinosaurs.forEach((dinosaur) => dinosaur.update(time, this.hero));
+    this.handleHeroAttackDamage(time);
     this.handleDinosaurContactDamage(time);
 
     if (!this.hero.isAlive) {
@@ -128,7 +130,7 @@ export class WorldScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(480, 214, 'Use WASD or arrow keys to explore. Avoid the dinosaurs.', {
+      .text(480, 214, 'Use WASD or arrow keys to explore. Press Space or J to attack.', {
         color: '#374151',
         fontFamily: 'Arial, sans-serif',
         fontSize: '20px',
@@ -168,7 +170,7 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(101);
 
     this.statusText = this.add
-      .text(28, 87, 'Move: WASD / Arrow Keys', {
+      .text(28, 87, 'Move: WASD / Arrow Keys  Attack: Space / J', {
         color: '#d1d5db',
         fontFamily: 'Arial, sans-serif',
         fontSize: '14px',
@@ -216,8 +218,40 @@ export class WorldScene extends Phaser.Scene {
       .join('  ');
 
     this.statusText.setText(
-      this.gameOver ? `Press R to restart  ${dinosaurStatus}` : `Move: WASD / Arrow Keys  ${dinosaurStatus}`,
+      this.gameOver
+        ? `Press R to restart  ${dinosaurStatus}`
+        : `Move: WASD / Arrow Keys  Attack: Space / J  ${dinosaurStatus}`,
     );
+  }
+
+  private handleHeroAttackDamage(time: number) {
+    const attackBounds = this.hero.getAttackBounds(time);
+
+    if (!attackBounds) {
+      return;
+    }
+
+    this.dinosaurs.forEach((dinosaur) => {
+      if (!dinosaur.isAlive || this.attackHits.get(dinosaur) === this.hero.attackId) {
+        return;
+      }
+
+      const dinosaurBody = dinosaur.arcadeBody;
+      const dinosaurBounds = new Phaser.Geom.Rectangle(
+        dinosaurBody.position.x,
+        dinosaurBody.position.y,
+        dinosaurBody.width,
+        dinosaurBody.height,
+      );
+
+      if (!Phaser.Geom.Intersects.RectangleToRectangle(attackBounds, dinosaurBounds)) {
+        return;
+      }
+
+      dinosaur.takeDamage(this.hero.attackDamage);
+      this.attackHits.set(dinosaur, this.hero.attackId);
+      this.cameras.main.shake(80, 0.003);
+    });
   }
 
   private handleDinosaurContactDamage(time: number) {
