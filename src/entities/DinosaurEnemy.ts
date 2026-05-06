@@ -72,13 +72,13 @@ export class DinosaurEnemy extends Phaser.Physics.Arcade.Sprite {
     // Configure body for ground physics. Body coords are in *texture* space
     // (the unscaled sprite frame), Phaser scales it automatically.
     if (kind === 'trex') {
-      // T-Rex: body covers most of the body area but not the head.
-      this.body!.setSize(46, 28);
-      (this.body as Phaser.Physics.Arcade.Body).setOffset(8, 14);
+      // T-Rex: broad hit box for skull, torso, and legs while leaving the tail tip loose.
+      this.body!.setSize(50, 29);
+      (this.body as Phaser.Physics.Arcade.Body).setOffset(6, 14);
     } else {
-      // Raptor: body around torso/legs.
-      this.body!.setSize(22, 16);
-      (this.body as Phaser.Physics.Arcade.Body).setOffset(4, 6);
+      // Raptor: torso/leg hit box; the long snout and tail stay visually nimble.
+      this.body!.setSize(22, 15);
+      (this.body as Phaser.Physics.Arcade.Body).setOffset(6, 7);
     }
 
     this.setCollideWorldBounds(true);
