@@ -1,100 +1,85 @@
 import Phaser from 'phaser';
+import { SPRITE_DIMENSIONS } from '../assets/SpriteFactory';
+import { Projectile } from './Projectile';
 
-export type HeroMovementState = 'idle' | 'walk' | 'attack' | 'hurt' | 'dead';
-
-type MovementKeys = {
-  up: Phaser.Input.Keyboard.Key;
-  down: Phaser.Input.Keyboard.Key;
-  left: Phaser.Input.Keyboard.Key;
-  right: Phaser.Input.Keyboard.Key;
-};
-
-const HERO_HALF_WIDTH = 22;
-const HERO_HALF_HEIGHT = 32;
-const HERO_COLLISION_WIDTH = 32;
-const HERO_COLLISION_HEIGHT = 20;
-const HERO_COLLISION_OFFSET_X = -HERO_COLLISION_WIDTH / 2;
-const HERO_COLLISION_OFFSET_Y = 10;
-const HERO_SPEED = 260;
+const HERO_SCALE = 2;
+const HERO_RUN_SPEED = 220;
+const HERO_JUMP_VELOCITY = -540;
 const HERO_MAX_HEALTH = 5;
 const HERO_INVULNERABILITY_MS = 900;
-const HERO_ATTACK_DAMAGE = 1;
-const HERO_ATTACK_RANGE = 74;
-const HERO_ATTACK_HEIGHT = 72;
-const HERO_ATTACK_ACTIVE_MS = 160;
-const HERO_ATTACK_DURATION_MS = 260;
-const HERO_ATTACK_COOLDOWN_MS = 430;
+const HERO_HURT_KNOCKBACK_X = 220;
+const HERO_HURT_KNOCKBACK_Y = -260;
+const HERO_HURT_CONTROL_LOCK_MS = 240;
+const HERO_SHOOT_COOLDOWN_MS = 320;
+const HERO_SHOOT_POSE_MS = 180;
 
-export class Hero extends Phaser.GameObjects.Container {
+type Keys = {
+  left: Phaser.Input.Keyboard.Key;
+  right: Phaser.Input.Keyboard.Key;
+  jump: Phaser.Input.Keyboard.Key[];
+  shoot: Phaser.Input.Keyboard.Key[];
+};
+
+export class Hero extends Phaser.Physics.Arcade.Sprite {
   private readonly cursors: Phaser.Types.Input.Keyboard.CursorKeys;
-  private readonly wasd: MovementKeys;
-  private readonly attackKeys: Phaser.Input.Keyboard.Key[];
-  private readonly torso: Phaser.GameObjects.Rectangle;
-  private readonly leftLeg: Phaser.GameObjects.Rectangle;
-  private readonly rightLeg: Phaser.GameObjects.Rectangle;
-  private readonly head: Phaser.GameObjects.Arc;
-  private readonly attackIndicator: Phaser.GameObjects.Rectangle;
+  private readonly keys: Keys;
+  private readonly projectileGroup: Phaser.Physics.Arcade.Group;
   private healthValue = HERO_MAX_HEALTH;
   private invulnerableUntil = 0;
-  private movementState: HeroMovementState = 'idle';
+  private hurtControlLockedUntil = 0;
+  private nextShotAt = 0;
+  private shootingUntil = 0;
   private facing: -1 | 1 = 1;
-  private attackDirX: -1 | 0 | 1 = 1;
-  private attackDirY: -1 | 0 | 1 = 0;
-  private attackActiveUntil = 0;
-  private attackUntil = 0;
-  private nextAttackAt = 0;
-  private currentAttackId = 0;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y);
+  constructor(scene: Phaser.Scene, x: number, y: number, projectileGroup: Phaser.Physics.Arcade.Group) {
+    super(scene, x, y, 'hero', 'idle');
+    this.projectileGroup = projectileGroup;
 
     const keyboard = scene.input.keyboard;
-
     if (!keyboard) {
-      throw new Error('Keyboard input is required for hero movement.');
+      throw new Error('Keyboard input is required.');
     }
 
     this.cursors = keyboard.createCursorKeys();
-    this.wasd = {
-      up: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-      down: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
+    this.keys = {
       left: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
       right: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+      jump: [
+        keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
+        keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+      ],
+      shoot: [
+        keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.J),
+        keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
+      ],
     };
-    this.attackKeys = [
-      keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
-      keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.J),
-    ];
-
-    const shadow = scene.add.ellipse(0, 28, 46, 16, 0x000000, 0.18);
-    this.leftLeg = scene.add.rectangle(-10, 18, 9, 24, 0x1f2937);
-    this.rightLeg = scene.add.rectangle(10, 18, 9, 24, 0x1f2937);
-    this.torso = scene.add.rectangle(0, -4, 34, 42, 0x2563eb);
-    this.head = scene.add.circle(0, -34, 17, 0xfbbf24);
-    const eye = scene.add.circle(7, -38, 3, 0x111827);
-    const pack = scene.add.rectangle(-22, -2, 12, 34, 0x7c2d12);
-    this.attackIndicator = scene.add
-      .rectangle(HERO_HALF_WIDTH + HERO_ATTACK_RANGE / 2, 0, HERO_ATTACK_RANGE, HERO_ATTACK_HEIGHT, 0xfef08a, 0.22)
-      .setStrokeStyle(2, 0xfacc15, 0.82)
-      .setVisible(false);
-
-    this.add([shadow, pack, this.leftLeg, this.rightLeg, this.torso, this.head, eye, this.attackIndicator]);
-    this.setSize(HERO_HALF_WIDTH * 2, HERO_HALF_HEIGHT * 2);
-    this.setDepth(10);
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    this.arcadeBody
-      .setSize(HERO_COLLISION_WIDTH, HERO_COLLISION_HEIGHT)
-      .setOffset(HERO_COLLISION_OFFSET_X, HERO_COLLISION_OFFSET_Y)
-      .setAllowGravity(false)
-      .setCollideWorldBounds(true);
-    this.updateBodyOffset();
+    this.setScale(HERO_SCALE);
+    this.setOrigin(0.5, 1);
+    this.setDepth(10);
+
+    // Hero visuals are 16x24 native; collision box hugs the body.
+    const body = this.body as Phaser.Physics.Arcade.Body | null;
+    if (!body) {
+      throw new Error('Hero physics body not initialized');
+    }
+    const dim = SPRITE_DIMENSIONS.hero;
+    const bodyW = 8;
+    const bodyH = 22;
+    body.setSize(bodyW, bodyH);
+    // Center body horizontally on the sprite, anchor to feet.
+    body.setOffset((dim.width - bodyW) / 2, dim.height - bodyH);
+    body.setMaxVelocity(420, 900);
+    this.setCollideWorldBounds(true);
+
+    this.play('hero-idle');
   }
 
-  get movement() {
-    return this.movementState;
+  get arcadeBody() {
+    return this.body as Phaser.Physics.Arcade.Body;
   }
 
   get health() {
@@ -105,277 +90,124 @@ export class Hero extends Phaser.GameObjects.Container {
     return HERO_MAX_HEALTH;
   }
 
-  get attackDamage() {
-    return HERO_ATTACK_DAMAGE;
-  }
-
-  get attackId() {
-    return this.currentAttackId;
-  }
-
   get isAlive() {
     return this.healthValue > 0;
   }
 
-  get arcadeBody() {
-    return this.body as Phaser.Physics.Arcade.Body;
+  get facingDirection() {
+    return this.facing;
   }
 
   isInvulnerable(time = this.scene.time.now) {
     return time < this.invulnerableUntil;
   }
 
-  isAttackActive(time = this.scene.time.now) {
-    return this.isAlive && time < this.attackActiveUntil;
-  }
-
-  getAttackBounds(time = this.scene.time.now) {
-    if (!this.isAttackActive(time)) {
-      return null;
-    }
-
-    if (this.attackDirY !== 0) {
-      const y =
-        this.attackDirY > 0
-          ? this.y + HERO_HALF_HEIGHT
-          : this.y - HERO_HALF_HEIGHT - HERO_ATTACK_RANGE;
-      return new Phaser.Geom.Rectangle(
-        this.x - HERO_ATTACK_HEIGHT / 2,
-        y,
-        HERO_ATTACK_HEIGHT,
-        HERO_ATTACK_RANGE,
-      );
-    }
-
-    const dirX = this.attackDirX === 0 ? this.facing : this.attackDirX;
-    const x = dirX > 0 ? this.x + HERO_HALF_WIDTH : this.x - HERO_HALF_WIDTH - HERO_ATTACK_RANGE;
-
-    return new Phaser.Geom.Rectangle(x, this.y - HERO_ATTACK_HEIGHT / 2, HERO_ATTACK_RANGE, HERO_ATTACK_HEIGHT);
-  }
-
-  takeDamage(amount: number, time = this.scene.time.now) {
-    if (!this.isAlive || this.isInvulnerable(time) || amount <= 0) {
-      return false;
-    }
+  takeDamage(amount: number, sourceX: number, time = this.scene.time.now) {
+    if (!this.isAlive || this.isInvulnerable(time) || amount <= 0) return false;
 
     this.healthValue = Math.max(0, this.healthValue - amount);
     this.invulnerableUntil = time + HERO_INVULNERABILITY_MS;
+    this.hurtControlLockedUntil = time + HERO_HURT_CONTROL_LOCK_MS;
 
-    if (!this.isAlive) {
-      this.setMovementState('dead');
+    const dir = this.x < sourceX ? -1 : 1;
+    this.arcadeBody.setVelocity(dir * HERO_HURT_KNOCKBACK_X, HERO_HURT_KNOCKBACK_Y);
+
+    if (this.isAlive) {
+      this.play('hero-hurt', true);
+    } else {
       this.arcadeBody.setVelocity(0, 0);
-      this.arcadeBody.enable = false;
-      return true;
+      this.arcadeBody.allowGravity = false;
+      this.setTint(0x666666);
+      this.setRotation(Math.PI / 2);
     }
-
-    this.setMovementState('hurt');
     return true;
   }
 
-  heal(amount: number) {
-    if (amount <= 0) {
-      return;
-    }
-
-    this.healthValue = Math.min(HERO_MAX_HEALTH, this.healthValue + amount);
-  }
-
   update(time: number, _delta: number) {
-    if (!this.isAlive) {
-      this.playDeadPose();
-      return;
-    }
+    if (!this.isAlive) return;
 
-    this.tryStartAttack(time);
+    const left = this.cursors.left.isDown || this.keys.left.isDown;
+    const right = this.cursors.right.isDown || this.keys.right.isDown;
+    const jumpPressed = this.cursors.up.isDown || this.keys.jump.some((k) => k.isDown);
+    const shootJustPressed = this.keys.shoot.some((k) => Phaser.Input.Keyboard.JustDown(k));
 
-    const inputX = Number(this.isRightDown()) - Number(this.isLeftDown());
-    const inputY = Number(this.isDownDown()) - Number(this.isUpDown());
-    const inputLength = Math.hypot(inputX, inputY);
+    const onGround = this.arcadeBody.blocked.down || this.arcadeBody.touching.down;
+    const controlLocked = time < this.hurtControlLockedUntil;
 
-    if (inputLength > 0) {
-      const normalizedX = inputX / inputLength;
-      const normalizedY = inputY / inputLength;
-
-      this.arcadeBody.setVelocity(normalizedX * HERO_SPEED, normalizedY * HERO_SPEED);
-
-      if (inputX !== 0 && !this.isAttacking(time)) {
-        this.setFacing(inputX > 0 ? 1 : -1);
+    if (!controlLocked) {
+      // Horizontal movement.
+      if (left && !right) {
+        this.arcadeBody.setVelocityX(-HERO_RUN_SPEED);
+        this.setFacing(-1);
+      } else if (right && !left) {
+        this.arcadeBody.setVelocityX(HERO_RUN_SPEED);
+        this.setFacing(1);
+      } else {
+        this.arcadeBody.setVelocityX(0);
       }
 
-      this.setMovementState('walk');
-      this.playWalkPose(time);
+      // Jump (only when grounded; classic platformer feel — not a double-jump).
+      if (jumpPressed && onGround) {
+        this.arcadeBody.setVelocityY(HERO_JUMP_VELOCITY);
+      }
+    }
+
+    // Shoot.
+    if (shootJustPressed && time >= this.nextShotAt) {
+      this.fireProjectile(time);
+    }
+
+    this.updateAnimation(time, onGround);
+    this.updateInvulnerabilityFlash(time);
+  }
+
+  private fireProjectile(time: number) {
+    const projectile = this.projectileGroup.get(this.x, this.y, 'projectile', 'bolt') as Projectile | null;
+    if (!projectile) return;
+
+    projectile.body!.enable = true;
+    const muzzleX = this.x + this.facing * 18;
+    const muzzleY = this.y - 26;
+    projectile.setPosition(muzzleX, muzzleY);
+    projectile.fire(this.facing, time);
+
+    this.nextShotAt = time + HERO_SHOOT_COOLDOWN_MS;
+    this.shootingUntil = time + HERO_SHOOT_POSE_MS;
+  }
+
+  private setFacing(next: -1 | 1) {
+    this.facing = next;
+    this.setFlipX(next === -1);
+  }
+
+  private updateAnimation(time: number, onGround: boolean) {
+    if (this.anims.isPlaying && this.anims.currentAnim?.key === 'hero-hurt') {
+      // Stay in hurt frame briefly while knocked back.
+      if (time < this.invulnerableUntil - HERO_INVULNERABILITY_MS + HERO_HURT_CONTROL_LOCK_MS) return;
+    }
+
+    if (time < this.shootingUntil) {
+      if (this.anims.currentAnim?.key !== 'hero-shoot') this.play('hero-shoot', true);
+      return;
+    }
+
+    if (!onGround) {
+      if (this.anims.currentAnim?.key !== 'hero-jump') this.play('hero-jump', true);
+      return;
+    }
+
+    if (Math.abs(this.arcadeBody.velocity.x) > 5) {
+      if (this.anims.currentAnim?.key !== 'hero-run') this.play('hero-run', true);
+    } else if (this.anims.currentAnim?.key !== 'hero-idle') {
+      this.play('hero-idle', true);
+    }
+  }
+
+  private updateInvulnerabilityFlash(time: number) {
+    if (this.isInvulnerable(time)) {
+      this.alpha = 0.45 + Math.sin(time * 0.04) * 0.25;
     } else {
-      this.arcadeBody.setVelocity(0, 0);
-      this.setMovementState('idle');
-      this.playIdlePose(time);
+      this.alpha = 1;
     }
-
-    if (this.isAttacking(time)) {
-      this.setMovementState('attack');
-      this.playAttackPose(time);
-    }
-
-    this.updateAttackIndicator(time);
-    this.playDamageFeedback(time);
-  }
-
-  private isUpDown() {
-    return this.cursors.up.isDown || this.wasd.up.isDown;
-  }
-
-  private isDownDown() {
-    return this.cursors.down.isDown || this.wasd.down.isDown;
-  }
-
-  private isLeftDown() {
-    return this.cursors.left.isDown || this.wasd.left.isDown;
-  }
-
-  private isRightDown() {
-    return this.cursors.right.isDown || this.wasd.right.isDown;
-  }
-
-  private isAttackDown() {
-    return this.attackKeys.some((key) => Phaser.Input.Keyboard.JustDown(key));
-  }
-
-  private isAttacking(time: number) {
-    return time < this.attackUntil;
-  }
-
-  private tryStartAttack(time: number) {
-    if (time < this.nextAttackAt || !this.isAttackDown()) {
-      return;
-    }
-
-    const horizInput = (Number(this.isRightDown()) - Number(this.isLeftDown())) as -1 | 0 | 1;
-    const vertInput = (Number(this.isDownDown()) - Number(this.isUpDown())) as -1 | 0 | 1;
-
-    if (horizInput !== 0) {
-      this.attackDirX = horizInput;
-      this.attackDirY = 0;
-      this.setFacing(horizInput === 1 ? 1 : -1);
-    } else if (vertInput !== 0) {
-      this.attackDirX = 0;
-      this.attackDirY = vertInput;
-    } else {
-      this.attackDirX = this.facing;
-      this.attackDirY = 0;
-    }
-
-    this.currentAttackId += 1;
-    this.attackActiveUntil = time + HERO_ATTACK_ACTIVE_MS;
-    this.attackUntil = time + HERO_ATTACK_DURATION_MS;
-    this.nextAttackAt = time + HERO_ATTACK_COOLDOWN_MS;
-  }
-
-  private setFacing(nextFacing: -1 | 1) {
-    this.facing = nextFacing;
-    this.scaleX = nextFacing;
-  }
-
-  private updateBodyOffset() {
-    if (!this.body) {
-      return;
-    }
-
-    // The body is symmetric and centered on the container origin. The visuals
-    // are mirrored via scaleX, so the offset must NOT be flipped with facing –
-    // doing so would teleport the body sideways by a full body width and
-    // cause invisible-wall behavior.
-    this.arcadeBody.setOffset(HERO_COLLISION_OFFSET_X, HERO_COLLISION_OFFSET_Y);
-  }
-
-  private setMovementState(nextState: HeroMovementState) {
-    if (this.movementState === nextState) {
-      return;
-    }
-
-    this.movementState = nextState;
-
-    if (nextState === 'attack') {
-      this.torso.setFillStyle(0x7c3aed);
-      this.head.setFillStyle(0xfbbf24);
-      return;
-    }
-
-    if (nextState === 'hurt') {
-      this.torso.setFillStyle(0xdc2626);
-      this.head.setFillStyle(0xf87171);
-      return;
-    }
-
-    if (nextState === 'dead') {
-      this.torso.setFillStyle(0x4b5563);
-      this.head.setFillStyle(0x9ca3af);
-      return;
-    }
-
-    this.torso.setFillStyle(nextState === 'walk' ? 0x1d4ed8 : 0x2563eb);
-    this.head.setFillStyle(nextState === 'walk' ? 0xf59e0b : 0xfbbf24);
-  }
-
-  private playWalkPose(time: number) {
-    const stride = Math.sin(time * 0.018);
-
-    this.leftLeg.y = 18 + stride * 4;
-    this.rightLeg.y = 18 - stride * 4;
-    this.torso.y = -4 + Math.abs(stride) * 2;
-    this.head.y = -34 + Math.abs(stride) * 2;
-    this.rotation = stride * 0.035;
-  }
-
-  private playIdlePose(time: number) {
-    const breath = Math.sin(time * 0.004) * 1.5;
-
-    this.leftLeg.y = 18;
-    this.rightLeg.y = 18;
-    this.torso.y = -4 + breath;
-    this.head.y = -34 + breath;
-    this.rotation = 0;
-  }
-
-  private playAttackPose(time: number) {
-    const swing = Math.sin(time * 0.045) * 0.08;
-
-    this.torso.y = -6;
-    this.head.y = -36;
-    this.rotation = swing;
-  }
-
-  private updateAttackIndicator(time: number) {
-    const active = this.isAttackActive(time);
-    this.attackIndicator.setVisible(active);
-
-    if (!active) {
-      return;
-    }
-
-    if (this.attackDirY !== 0) {
-      this.attackIndicator.setSize(HERO_ATTACK_HEIGHT, HERO_ATTACK_RANGE);
-      const offsetY =
-        this.attackDirY > 0
-          ? HERO_HALF_HEIGHT + HERO_ATTACK_RANGE / 2
-          : -HERO_HALF_HEIGHT - HERO_ATTACK_RANGE / 2;
-      this.attackIndicator.setPosition(0, offsetY);
-    } else {
-      this.attackIndicator.setSize(HERO_ATTACK_RANGE, HERO_ATTACK_HEIGHT);
-      this.attackIndicator.setPosition(HERO_HALF_WIDTH + HERO_ATTACK_RANGE / 2, 0);
-    }
-  }
-
-  private playDamageFeedback(time: number) {
-    this.alpha = this.isInvulnerable(time) ? 0.45 + Math.sin(time * 0.04) * 0.25 : 1;
-  }
-
-  private playDeadPose() {
-    this.setMovementState('dead');
-    this.attackIndicator.setVisible(false);
-    this.leftLeg.y = 18;
-    this.rightLeg.y = 18;
-    this.torso.y = -4;
-    this.head.y = -34;
-    this.rotation = Math.PI / 2;
-    this.alpha = 0.8;
   }
 }
