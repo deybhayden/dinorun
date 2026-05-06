@@ -16,9 +16,12 @@ export class WorldScene extends Phaser.Scene {
   private gameOverText!: Phaser.GameObjects.Text;
   private victoryText!: Phaser.GameObjects.Text;
   private restartKey?: Phaser.Input.Keyboard.Key;
+  private pauseOverlay!: Phaser.GameObjects.Rectangle;
+  private pauseText!: Phaser.GameObjects.Text;
   private attackHits = new Map<DinosaurEnemy, number>();
   private gameOver = false;
   private victory = false;
+  private paused = false;
 
   constructor() {
     super('WorldScene');
@@ -44,6 +47,11 @@ export class WorldScene extends Phaser.Scene {
       this.adventureMap.worldBounds.height,
     );
     this.restartKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    this.input.keyboard?.addCapture('ESC');
+    this.input.keyboard?.on('keydown-ESC', this.handlePauseKey, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.keyboard?.off('keydown-ESC', this.handlePauseKey, this);
+    });
 
     this.createTitleCard();
     this.createHero();
@@ -58,6 +66,10 @@ export class WorldScene extends Phaser.Scene {
     if (this.gameOver || this.victory) {
       this.restartIfRequested();
       this.updateHud();
+      return;
+    }
+
+    if (this.paused) {
       return;
     }
 
@@ -163,6 +175,27 @@ export class WorldScene extends Phaser.Scene {
 
     this.gameOverText = this.add
       .text(this.scale.width / 2, this.scale.height / 2, 'Game Over\nPress R to restart', {
+        align: 'center',
+        color: '#f9fafb',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '44px',
+        fontStyle: 'bold',
+        stroke: '#111827',
+        strokeThickness: 8,
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(200)
+      .setVisible(false);
+
+    this.pauseOverlay = this.add
+      .rectangle(this.scale.width / 2, this.scale.height / 2, this.scale.width, this.scale.height, 0x000000, 0.55)
+      .setScrollFactor(0)
+      .setDepth(199)
+      .setVisible(false);
+
+    this.pauseText = this.add
+      .text(this.scale.width / 2, this.scale.height / 2, 'Paused\nPress Esc to resume', {
         align: 'center',
         color: '#f9fafb',
         fontFamily: 'Arial, sans-serif',
@@ -322,6 +355,27 @@ export class WorldScene extends Phaser.Scene {
     this.hero.arcadeBody.setVelocity(0, 0);
     this.cameras.main.stopFollow();
     this.cameras.main.flash(280, 253, 230, 138, false);
+  }
+
+  private handlePauseKey() {
+    if (this.gameOver || this.victory) {
+      return;
+    }
+    this.togglePause();
+  }
+
+  private togglePause() {
+    this.paused = !this.paused;
+    this.pauseOverlay.setVisible(this.paused);
+    this.pauseText.setVisible(this.paused);
+
+    if (this.paused) {
+      this.physics.world.pause();
+      this.hero.arcadeBody.setVelocity(0, 0);
+      this.dinosaurs.forEach((dinosaur) => dinosaur.arcadeBody.setVelocity(0, 0));
+    } else {
+      this.physics.world.resume();
+    }
   }
 
   private restartIfRequested() {
