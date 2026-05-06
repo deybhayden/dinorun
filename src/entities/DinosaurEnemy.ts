@@ -15,10 +15,15 @@ export type DinosaurEnemyOptions = {
   contactDamage?: number;
 };
 
-const DINO_BODY_WIDTH = 108;
-const DINO_BODY_HEIGHT = 58;
-const DINO_BODY_OFFSET_X = -54;
-const DINO_BODY_OFFSET_Y = -52;
+// Visual extent runs from y ~= -86 (head) to y ~= +27 (feet). For top-down
+// collision we want the box centered on the feet/lower body, not floating up
+// at head height like before.
+const DINO_BODY_WIDTH = 70;
+const DINO_BODY_HEIGHT = 38;
+const DINO_BODY_OFFSET_X = -DINO_BODY_WIDTH / 2;
+const DINO_BODY_OFFSET_Y = -8;
+const DINO_VISUAL_WIDTH = 108;
+const DINO_VISUAL_HEIGHT = 58;
 const DEFAULT_DINO_HEALTH = 3;
 const DEFAULT_DINO_SPEED = 115;
 const DEFAULT_DETECTION_RADIUS = 300;
@@ -116,7 +121,7 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
       this.healthText,
       this.behaviorText,
     ]);
-    this.setSize(DINO_BODY_WIDTH, DINO_BODY_HEIGHT);
+    this.setSize(DINO_VISUAL_WIDTH, DINO_VISUAL_HEIGHT);
     this.setDepth(8);
     this.setFacing(this.facing);
 
@@ -372,7 +377,6 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
   private setFacing(nextFacing: -1 | 1) {
     this.facing = nextFacing;
     this.scaleX = nextFacing;
-    this.updateBodyOffset();
 
     // The whole container is mirrored to turn the dinosaur around. Counter-scale
     // text labels so health and behavior remain readable in either direction.
@@ -385,10 +389,11 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
       return;
     }
 
-    this.arcadeBody.setOffset(
-      this.facing > 0 ? DINO_BODY_OFFSET_X : -DINO_BODY_OFFSET_X,
-      DINO_BODY_OFFSET_Y,
-    );
+    // The body is symmetric and centered on the container origin. The visuals
+    // are mirrored via scaleX, so the offset must NOT be flipped with facing –
+    // doing so would teleport the body sideways by a full body width and
+    // cause invisible-wall behavior.
+    this.arcadeBody.setOffset(DINO_BODY_OFFSET_X, DINO_BODY_OFFSET_Y);
   }
 
   private setMovementState(nextState: DinosaurMovementState) {

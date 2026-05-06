@@ -272,7 +272,6 @@ export class Hero extends Phaser.GameObjects.Container {
   private setFacing(nextFacing: -1 | 1) {
     this.facing = nextFacing;
     this.scaleX = nextFacing;
-    this.updateBodyOffset();
   }
 
   private updateBodyOffset() {
@@ -280,10 +279,11 @@ export class Hero extends Phaser.GameObjects.Container {
       return;
     }
 
-    this.arcadeBody.setOffset(
-      this.facing > 0 ? HERO_COLLISION_OFFSET_X : -HERO_COLLISION_OFFSET_X,
-      HERO_COLLISION_OFFSET_Y,
-    );
+    // The body is symmetric and centered on the container origin. The visuals
+    // are mirrored via scaleX, so the offset must NOT be flipped with facing –
+    // doing so would teleport the body sideways by a full body width and
+    // cause invisible-wall behavior.
+    this.arcadeBody.setOffset(HERO_COLLISION_OFFSET_X, HERO_COLLISION_OFFSET_Y);
   }
 
   private setMovementState(nextState: HeroMovementState) {
