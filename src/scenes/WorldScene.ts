@@ -14,15 +14,21 @@ export class WorldScene extends Phaser.Scene {
   private objectiveText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
   private gameOverText!: Phaser.GameObjects.Text;
+  private victoryText!: Phaser.GameObjects.Text;
   private restartKey?: Phaser.Input.Keyboard.Key;
   private attackHits = new Map<DinosaurEnemy, number>();
   private gameOver = false;
+  private victory = false;
 
   constructor() {
     super('WorldScene');
   }
 
   create() {
+    this.gameOver = false;
+    this.victory = false;
+    this.dinosaurs = [];
+    this.attackHits = new Map();
     this.adventureMap = new AdventureMap(this);
     this.cameras.main.setBounds(
       this.adventureMap.worldBounds.x,
@@ -49,7 +55,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
-    if (this.gameOver) {
+    if (this.gameOver || this.victory) {
       this.restartIfRequested();
       this.updateHud();
       return;
@@ -62,6 +68,8 @@ export class WorldScene extends Phaser.Scene {
 
     if (!this.hero.isAlive) {
       this.showGameOver();
+    } else if (this.dinosaurs.length > 0 && this.dinosaurs.every((dinosaur) => !dinosaur.isAlive)) {
+      this.showVictory();
     }
 
     this.updateHud();
@@ -168,6 +176,26 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(200)
       .setVisible(false);
 
+    this.victoryText = this.add
+      .text(
+        this.scale.width / 2,
+        this.scale.height / 2,
+        'Victory!\nAll dinosaurs defeated\nPress R to play again',
+        {
+          align: 'center',
+          color: '#fde68a',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '44px',
+          fontStyle: 'bold',
+          stroke: '#111827',
+          strokeThickness: 8,
+        },
+      )
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(200)
+      .setVisible(false);
+
     this.updateHud();
   }
 
@@ -185,9 +213,11 @@ export class WorldScene extends Phaser.Scene {
       `Objective: Defeat all dinosaurs (${defeatedDinosaurs}/${this.dinosaurs.length})${allDinosaursDefeated ? ' complete' : ''}`,
     );
 
-    this.statusText.setText(
-      this.gameOver ? 'Press R to restart' : 'Move: WASD / Arrow Keys  Attack: Space / J',
-    );
+    if (this.gameOver || this.victory) {
+      this.statusText.setText('Press R to restart');
+    } else {
+      this.statusText.setText('Move: WASD / Arrow Keys  Attack: Space / J');
+    }
   }
 
   private handleHeroAttackDamage(time: number) {
@@ -280,6 +310,18 @@ export class WorldScene extends Phaser.Scene {
     this.gameOverText.setVisible(true);
     this.dinosaurs.forEach((dinosaur) => dinosaur.setMoveDirection(0));
     this.cameras.main.stopFollow();
+  }
+
+  private showVictory() {
+    if (this.victory) {
+      return;
+    }
+
+    this.victory = true;
+    this.victoryText.setVisible(true);
+    this.hero.arcadeBody.setVelocity(0, 0);
+    this.cameras.main.stopFollow();
+    this.cameras.main.flash(280, 253, 230, 138, false);
   }
 
   private restartIfRequested() {
