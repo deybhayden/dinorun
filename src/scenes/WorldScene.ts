@@ -12,18 +12,20 @@ export class WorldScene extends Phaser.Scene {
   private readonly heroRectCache = new Phaser.Geom.Rectangle();
   private projectiles!: Phaser.Physics.Arcade.Group;
   private heroHealthFill!: Phaser.GameObjects.Rectangle;
-  private heroHealthText!: Phaser.GameObjects.Text;
-  private objectiveText!: Phaser.GameObjects.Text;
-  private statusText!: Phaser.GameObjects.Text;
+  private heroFace!: Phaser.GameObjects.Sprite;
+  private objectiveArrow!: Phaser.GameObjects.Text;
+  private helpOverlay!: Phaser.GameObjects.Container;
   private warningText!: Phaser.GameObjects.Text;
   private gameOverText!: Phaser.GameObjects.Text;
   private victoryText!: Phaser.GameObjects.Text;
   private pauseOverlay!: Phaser.GameObjects.Rectangle;
   private pauseText!: Phaser.GameObjects.Text;
+  private pauseControlsText!: Phaser.GameObjects.Text;
   private restartKey?: Phaser.Input.Keyboard.Key;
   private gameOver = false;
   private victory = false;
   private paused = false;
+  private helpVisible = false;
 
   constructor() {
     super('WorldScene');
@@ -33,6 +35,7 @@ export class WorldScene extends Phaser.Scene {
     this.gameOver = false;
     this.victory = false;
     this.paused = false;
+    this.helpVisible = false;
     this.dinosaurs = [];
 
     this.level = new Level(this);
@@ -58,7 +61,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
-    if (this.paused) return;
+    if (this.paused || this.helpVisible) return;
 
     if (this.gameOver || this.victory) {
       this.restartIfRequested();
@@ -158,6 +161,14 @@ export class WorldScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.keyboard?.off('keydown-ESC', this.handlePauseKey, this);
     });
+
+    // ? / SLASH key toggles help overlay.
+    const helpKey = this.input.keyboard?.addKey(191); // Forward-slash keycode
+    if (helpKey) {
+      helpKey.on('down', () => {
+        if (!this.gameOver && !this.victory) this.toggleHelp();
+      });
+    }
   }
 
   private handleHazardDamage(time: number) {
@@ -205,50 +216,84 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private createHud() {
-    const panel = this.add.rectangle(16, 16, 380, 110, 0x2a1810, 0.75).setOrigin(0);
-    panel.setStrokeStyle(2, 0xe8dcc8, 0.5).setScrollFactor(0).setDepth(100);
+    const PANEL_W = 360;
+    const PANEL_H = 56;
+    const PANEL_X = 8;
+    const PANEL_Y = 8;
 
-    this.heroHealthText = this.add
-      .text(28, 25, 'Health: 5/5', {
-        color: '#f5e6d3',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '18px',
-        fontStyle: 'bold',
-      })
+    // Subtle panel — dark translucent, thin gold border.
+    this.add.rectangle(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, 0x140e08, 0.82)
+      .setOrigin(0)
+      .setStrokeStyle(1, 0x8a7040, 0.55)
+      .setScrollFactor(0)
+      .setDepth(100);
+    // Fade the top edge for a vignette feel.
+    this.add.rectangle(PANEL_X, PANEL_Y, PANEL_W, 1, 0xd4a45a, 0.7)
+      .setOrigin(0)
       .setScrollFactor(0)
       .setDepth(101);
 
-    this.add.rectangle(132, 36, 150, 16, 0x5a2010).setOrigin(0, 0.5).setScrollFactor(0).setDepth(101);
-    this.heroHealthFill = this.add
-      .rectangle(132, 36, 150, 16, 0x7ab85a)
+    // Face sprite — Doom-style, changes with health.
+    this.heroFace = this.add.sprite(PANEL_X + 26, PANEL_Y + PANEL_H / 2, 'hero-face', 'face-100')
+      .setScale(1.75)
+      .setScrollFactor(0)
+      .setDepth(102);
+
+    // Thin health bar — background.
+    const barX = PANEL_X + 58;
+    const barY = PANEL_Y + 18;
+    const barW = 130;
+    const barH = 8;
+    this.add.rectangle(barX, barY, barW, barH, 0x1a0e08)
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(1, 0x443018, 0.6)
+      .setScrollFactor(0)
+      .setDepth(101);
+    this.heroHealthFill = this.add.rectangle(barX, barY, barW, barH, 0x7ab85a)
       .setOrigin(0, 0.5)
       .setScrollFactor(0)
       .setDepth(102);
 
-    this.objectiveText = this.add
-      .text(28, 58, 'Objective: Reach the rescue flag', {
-        color: '#d4a45a',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '17px',
-        fontStyle: 'bold',
-      })
+    // Arrow objective — just "→ ESCAPE" with a gentle pulse.
+    this.objectiveArrow = this.add.text(PANEL_X + 198, PANEL_Y + 12, '\u2192 ESCAPE', {
+      color: '#e8c070',
+      fontFamily: 'monospace',
+      fontSize: '18px',
+      fontStyle: 'bold',
+    })
       .setScrollFactor(0)
       .setDepth(101);
+    this.tweens.add({
+      targets: this.objectiveArrow,
+      alpha: { from: 1, to: 0.55 },
+      duration: 900,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
 
-    this.statusText = this.add
-      .text(28, 87, 'Move: A/D or Arrows  Jump: W/Up  Shoot: Space', {
-        color: '#b8a890',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '14px',
-      })
+    // "?" help button.
+    const helpBtn = this.add.text(PANEL_X + 198, PANEL_Y + 36, '[ ? ] Help', {
+      color: '#8a7040',
+      fontFamily: 'monospace',
+      fontSize: '13px',
+    })
       .setScrollFactor(0)
-      .setDepth(101);
+      .setDepth(101)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => { if (!this.gameOver && !this.victory) this.toggleHelp(); });
+    helpBtn.on('pointerover', () => helpBtn.setColor('#d4a45a'));
+    helpBtn.on('pointerout', () => helpBtn.setColor('#8a7040'));
 
+    // Help overlay (hidden by default).
+    this.createHelpOverlay();
+
+    // T-REX warning.
     this.warningText = this.add
       .text(this.scale.width / 2, 70, '!! T-REX  RUN !!', {
         color: '#fca5a5',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '32px',
+        fontFamily: 'monospace',
+        fontSize: '36px',
         fontStyle: 'bold',
         stroke: '#450a0a',
         strokeThickness: 6,
@@ -258,11 +303,12 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(101)
       .setVisible(false);
 
+    // Game over.
     this.gameOverText = this.add
       .text(this.scale.width / 2, this.scale.height / 2, 'Game Over\nPress R to restart', {
         align: 'center',
         color: '#f9fafb',
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: 'monospace',
         fontSize: '44px',
         fontStyle: 'bold',
         stroke: '#111827',
@@ -273,11 +319,12 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(200)
       .setVisible(false);
 
+    // Victory.
     this.victoryText = this.add
       .text(this.scale.width / 2, this.scale.height / 2, 'You made it!\nPress R to play again', {
         align: 'center',
         color: '#fde68a',
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: 'monospace',
         fontSize: '44px',
         fontStyle: 'bold',
         stroke: '#111827',
@@ -288,6 +335,7 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(200)
       .setVisible(false);
 
+    // Pause overlay.
     this.pauseOverlay = this.add
       .rectangle(this.scale.width / 2, this.scale.height / 2, this.scale.width, this.scale.height, 0x000000, 0.55)
       .setScrollFactor(0)
@@ -295,16 +343,35 @@ export class WorldScene extends Phaser.Scene {
       .setVisible(false);
 
     this.pauseText = this.add
-      .text(this.scale.width / 2, this.scale.height / 2, 'Paused\nPress Esc to resume', {
+      .text(this.scale.width / 2, this.scale.height / 2 - 60, 'PAUSED\n\nPress Esc to resume', {
         align: 'center',
         color: '#f9fafb',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '44px',
+        fontFamily: 'monospace',
+        fontSize: '30px',
         fontStyle: 'bold',
         stroke: '#111827',
-        strokeThickness: 8,
+        strokeThickness: 6,
       })
       .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(200)
+      .setVisible(false);
+
+    const pauseControls = [
+      'Move  ............  A / D  or  Arrow Keys',
+      'Jump  ............  W  or  Up Arrow',
+      'Shoot  ...........  Space',
+      'Help  ............  ?',
+    ];
+    this.pauseControlsText = this.add
+      .text(this.scale.width / 2, this.scale.height / 2 + 28, pauseControls.join('\n'), {
+        align: 'left',
+        color: '#c8b898',
+        fontFamily: 'monospace',
+        fontSize: '17px',
+        lineSpacing: 10,
+      })
+      .setOrigin(0.5, 0)
       .setScrollFactor(0)
       .setDepth(200)
       .setVisible(false);
@@ -312,23 +379,90 @@ export class WorldScene extends Phaser.Scene {
     this.updateHud();
   }
 
+  private createHelpOverlay() {
+    const W = 380;
+    const H = 220;
+    const ox = (this.scale.width - W) / 2;
+    const oy = (this.scale.height - H) / 2;
+
+    const bg = this.add.rectangle(ox, oy, W, H, 0x140e08, 0.94)
+      .setOrigin(0)
+      .setStrokeStyle(2, 0x8a7040, 0.6)
+      .setScrollFactor(0)
+      .setDepth(201);
+
+    const title = this.add.text(ox + W / 2, oy + 18, 'Controls', {
+      color: '#d4a45a',
+      fontFamily: 'monospace',
+      fontSize: '22px',
+      fontStyle: 'bold',
+    })
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(202);
+
+    const lines = [
+      'Move Left  ........  A  /  \u2190',
+      'Move Right  .......  D  /  \u2192',
+      'Jump  .............  W  /  \u2191',
+      'Shoot  ............  Space',
+      '',
+      'Pause  ............  Esc',
+      'Help  .............  ?',
+    ];
+    const body = this.add.text(ox + 28, oy + 48, lines.join('\n'), {
+      color: '#c8b898',
+      fontFamily: 'monospace',
+      fontSize: '15px',
+      lineSpacing: 6,
+    })
+      .setScrollFactor(0)
+      .setDepth(202);
+
+    const closeHint = this.add.text(ox + W / 2, oy + H - 22, 'Press ? or Esc to close', {
+      color: '#8a7040',
+      fontFamily: 'monospace',
+      fontSize: '13px',
+    })
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(202);
+
+    this.helpOverlay = this.add.container(0, 0, [bg, title, body, closeHint])
+      .setScrollFactor(0)
+      .setDepth(201)
+      .setVisible(false);
+  }
+
   private updateHud() {
     const healthPercent = Phaser.Math.Clamp(this.hero.health / this.hero.maxHealth, 0, 1);
-    const inv = this.hero.isAlive && this.hero.isInvulnerable() ? ' (invuln)' : '';
-    this.heroHealthText.setText(`Health: ${this.hero.health}/${this.hero.maxHealth}${inv}`);
-    this.heroHealthFill.displayWidth = 150 * healthPercent;
+
+    // Face frame based on health.
+    if (healthPercent > 0.75) this.heroFace.setFrame('face-100');
+    else if (healthPercent > 0.5) this.heroFace.setFrame('face-75');
+    else if (healthPercent > 0.25) this.heroFace.setFrame('face-50');
+    else if (healthPercent > 0) this.heroFace.setFrame('face-25');
+    else this.heroFace.setFrame('face-0');
+
+    // Invulnerability flash on face.
+    if (this.hero.isAlive && this.hero.isInvulnerable()) {
+      this.heroFace.alpha = 0.45 + Math.sin(this.time.now * 0.04) * 0.25;
+    } else {
+      this.heroFace.alpha = 1;
+    }
+
+    // Health bar fill.
+    const barW = 130;
+    this.heroHealthFill.displayWidth = barW * healthPercent;
     this.heroHealthFill.setFillStyle(
       healthPercent > 0.5 ? 0x22c55e : healthPercent > 0.25 ? 0xfacc15 : 0xef4444,
     );
 
-    const distance = Math.max(0, this.level.goalPosition.x - this.hero.x);
-    const distanceTiles = Math.round(distance / this.level.tileSize);
-    this.objectiveText.setText(`Objective: Reach the rescue flag  (${distanceTiles} tiles)`);
-
-    if (this.gameOver || this.victory) {
-      this.statusText.setText('Press R to restart');
+    // Death face: tint the face grey.
+    if (!this.hero.isAlive) {
+      this.heroFace.setTint(0x888888);
     } else {
-      this.statusText.setText('Move: A/D or Arrows  Jump: W/Up  Shoot: Space');
+      this.heroFace.clearTint();
     }
   }
 
@@ -359,13 +493,31 @@ export class WorldScene extends Phaser.Scene {
 
   private handlePauseKey() {
     if (this.gameOver || this.victory) return;
+    // If help overlay is showing, close it first instead of pausing.
+    if (this.helpVisible) {
+      this.toggleHelp();
+      return;
+    }
     this.togglePause();
+  }
+
+  private toggleHelp() {
+    this.helpVisible = !this.helpVisible;
+    this.helpOverlay.setVisible(this.helpVisible);
+
+    if (this.helpVisible) {
+      // Disable gameplay physics while reading help.
+      this.physics.world.pause();
+    } else if (!this.paused) {
+      this.physics.world.resume();
+    }
   }
 
   private togglePause() {
     this.paused = !this.paused;
     this.pauseOverlay.setVisible(this.paused);
     this.pauseText.setVisible(this.paused);
+    this.pauseControlsText.setVisible(this.paused);
 
     if (this.paused) {
       this.physics.world.pause();

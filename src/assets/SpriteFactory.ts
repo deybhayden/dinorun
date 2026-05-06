@@ -829,6 +829,158 @@ const GOAL_FRAMES: Record<string, Pixels> = {
   ],
 };
 
+// Hero face frames for Doom-style health indicator.
+// 16 wide x 24 tall — matches the hero sprite height so the face reads at scale.
+// 5 frames: healthy → near-death with increasing blood.
+const HERO_FACE_PALETTE: Palette = {
+  '.': 'transparent',
+  H: '#4a2a15', // hat
+  B: '#a52a2a', // bandana
+  S: '#c8956d', // skin
+  E: '#111111', // eyes/pupil
+  K: '#e8dcc8', // shirt
+  J: '#f5e6d3', // shirt highlight
+  G: '#5c3a1e', // belt
+  C: '#1a120a', // outline
+  R: '#a61e1e', // dried blood
+  Y: '#d93535', // fresh blood / wound
+  W: '#fff4d0', // teeth
+  X: '#681010', // dark blood/scab
+};
+
+const HERO_FACE_FRAMES: Record<string, Pixels> = {
+  'face-100': [
+    '.....HHHHH.......',
+    '....HHHHHHHH.....',
+    '...HHHHHHHHHH....',
+    '..HHHHHHHHHHHH...',
+    '..HBBBBBBBBBBH...',
+    '..HBBBBBBBBBBH...',
+    '..HHHHHHHHHHHH...',
+    '....SSSSSSSSS....',
+    '....SSSSSSSSS....',
+    '....SEESSEES....',
+    '....SSSSSSSSS....',
+    '....SSSSSSSSS....',
+    '....SSSWWSSS....',
+    '....SSSWWSSS....',
+    '....SSSSSSSSS....',
+    '....SSSSSSSSS....',
+    '....KJKKKJKK.....',
+    '....KKJJJJJKK....',
+    '....KKKKKKKKK....',
+    '....KKKKKKKKK....',
+    '....GGGGGGGGG....',
+    '................',
+    '................',
+    '................',
+  ],
+  'face-75': [
+    '.....HHHHH.......',
+    '....HHHHHHHH.....',
+    '...HHHHHHHHHH....',
+    '..HHHHHHHHHHHH...',
+    '..HBBBBBBBBBBH...',
+    '..HBBBBBBBBBBH...',
+    '..HHHHHHHHHHHH...',
+    '....SSSSSSSSS....',
+    '....SSSSSSSSS....',
+    '....SESSESEES....',
+    '....SSSSSYSSS....',
+    '....SSSSSSSSS....',
+    '....SSSWWSSS....',
+    '....SSSWWSSS....',
+    '....SSSSSSSSS....',
+    '....SSSSSSSSS....',
+    '....KJKKKJKK.....',
+    '....KKJJJJJKK....',
+    '....KKKKKKKKK....',
+    '....KKKKKKKKK....',
+    '....GGGGGGGGG....',
+    '................',
+    '................',
+    '................',
+  ],
+  'face-50': [
+    '.....HHHHH.......',
+    '....HHHHHHHH.....',
+    '...HHHHHHHHHH....',
+    '..HHHHHHHHHHHH...',
+    '..HBBBBBBBBBBH...',
+    '..HBBRBRBBRBBH...',
+    '..HHHHHHHHHHHH...',
+    '....SSSSSSSSS....',
+    '....SSSSSSSSS....',
+    '....SEEYSSEES....',
+    '....SSSYSSYSS....',
+    '....SSSSYSSSS....',
+    '....SWWWWWWS....',
+    '....SWWSSWWS....',
+    '....SSSYSSSSS....',
+    '....SSSSSSSSS....',
+    '....KJKKKJKK.....',
+    '....KKJJJJJKK....',
+    '....KKKYKKKYK....',
+    '....KKKKKKKKK....',
+    '....GGGGGGGGG....',
+    '................',
+    '................',
+    '................',
+  ],
+  'face-25': [
+    '.....HHHHH.......',
+    '....HHHHHHHH.....',
+    '...HHHHHHHHHH....',
+    '..HYHHHHHHHHHY...',
+    '..HBBBRBBRBBBH...',
+    '..HBBYBBBBBBYH...',
+    '..HHHHHHHHHHHH...',
+    '...SSYSSSSYSS....',
+    '...YSSSSSSSSY....',
+    '...SEXYSSEXS....',
+    '...SSYYSSYYSS....',
+    '...SSSYSSYSSS....',
+    '...SWWWWWWWS....',
+    '...SWSSSSWS....',
+    '...SSSSYSSSS....',
+    '...SSSYSSYSS....',
+    '...KJKKKKKJK....',
+    '...KKJYKYJKK....',
+    '...KKKYYYKKK....',
+    '...KKKYKYKKK....',
+    '...GGGGGGGGG....',
+    '................',
+    '................',
+    '................',
+  ],
+  'face-0': [
+    '.....HHHHH.......',
+    '....HYHHHHHY.....',
+    '...HHYHHHHYHH....',
+    '..HYHYHHHHHYHY...',
+    '..HBRBRBBRBRBH...',
+    '..HBYBBBBBBBYH...',
+    '..HHYHHHHHHYHH...',
+    '...SYSSSSSSYS....',
+    '..YSSYSSSSYSY....',
+    '...SEXSSSSEX....',
+    '...SSYXSSXYS....',
+    '...SSYXXXXYS....',
+    '...SXWWWWWWXS....',
+    '...SXWSSSWXS....',
+    '...SYXXXXXYS....',
+    '...SSYXXXYS....',
+    '...KYJKYJYKK....',
+    '...KKYYYKKYKK....',
+    '...KKYKYYKKK....',
+    '...KKKYYYKKK....',
+    '...GGYGGGGYG....',
+    '.....YY..YY......',
+    '.....YY..YY......',
+    '................',
+  ],
+};
+
 const PROJECTILE_PALETTE: Palette = {
   '.': 'transparent',
   Y: '#fde047',
@@ -977,6 +1129,16 @@ export function buildSpriteAtlas(scene: Phaser.Scene) {
   );
 
   buildAtlas(scene, 'goal', GOAL_W, GOAL_H, ['flag'], GOAL_FRAMES, GOAL_PALETTE);
+
+  buildAtlas(
+    scene,
+    'hero-face',
+    HERO_W,
+    HERO_H,
+    ['face-100', 'face-75', 'face-50', 'face-25', 'face-0'],
+    HERO_FACE_FRAMES,
+    HERO_FACE_PALETTE,
+  );
 
   buildAtlas(
     scene,
