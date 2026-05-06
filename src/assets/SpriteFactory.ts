@@ -22,19 +22,19 @@ const PROJECTILE_H = 4;
 
 const HERO_PALETTE: Palette = {
   '.': 'transparent',
-  H: '#3a1f0a', // hat
-  B: '#1a0a02', // hat band
-  S: '#f3c79a', // skin
+  H: '#4a2a15', // hat - warm brown
+  B: '#a52a2a', // bandana - red from cover
+  S: '#c8956d', // skin - tanned
   E: '#111111', // eyes
-  K: '#a8895a', // khaki shirt
-  J: '#d4b07a', // shirt highlight
-  P: '#26344f', // pants
-  Q: '#1a2438', // pants shadow
-  R: '#4a2a10', // boots
-  T: '#2a1808', // boot dark
-  G: '#3a2916', // belt
+  K: '#e8dcc8', // cream shirt from cover
+  J: '#f5e6d3', // shirt highlight
+  P: '#6b4423', // pants - earthy brown
+  Q: '#4a3018', // pants shadow
+  R: '#3d2817', // boots - dark brown
+  T: '#2a1a0f', // boot dark
+  G: '#5c3a1e', // belt
   W: '#cdcdcd', // gun metal
-  C: '#101010', // outline
+  C: '#1a120a', // outline - warm dark
 };
 
 // 16 wide x 24 tall. Authored row-by-row.
@@ -590,22 +590,22 @@ const TREX_FRAMES: Record<string, Pixels> = {
 
 const TILE_PALETTE: Palette = {
   '.': 'transparent',
-  G: '#3aa53a',
-  g: '#2d8a2d',
-  H: '#5fd05f',
-  D: '#7a4a25',
-  d: '#5a341a',
-  M: '#8b5a2a',
-  S: '#888888',
-  s: '#5a5a5a',
-  K: '#aaaaaa',
-  R: '#c0392b',
-  r: '#7a2018',
-  Y: '#f5c14a',
-  W: '#ffffff',
-  P: '#cdcdcd',
-  L: '#dde0c7',
-  B: '#000000',
+  G: '#4a7c3a', // grass - earthy jungle green
+  g: '#3a5c2a',
+  H: '#6ba35a', // grass highlight
+  D: '#6b4a35', // dirt - warm earthy brown
+  d: '#4a3525',
+  M: '#8b6a4a',
+  S: '#9a8a7a', // stone/spike - volcanic stone
+  s: '#6a5a4a',
+  K: '#baba9a',
+  R: '#c45a3a', // spike accent - volcanic red
+  r: '#8b3a2a',
+  Y: '#d4a45a', // platform wood - aged jungle wood
+  W: '#e8dcc8',
+  P: '#b8a890',
+  L: '#d4c4a8',
+  B: '#2a1a0a',
 };
 
 const TILE_FRAMES: Record<string, Pixels> = {
@@ -849,9 +849,9 @@ const TREE_PALETTE: Palette = {
   '.': 'transparent',
   T: '#3a2410',
   t: '#5a3618',
-  L: '#1a5a1a',
-  l: '#2d8a2d',
-  H: '#5fd05f',
+  L: '#2a4a1a',
+  l: '#3a6a2a',
+  H: '#6a9a5a',
 };
 
 const TREE_FRAMES: Record<string, Pixels> = {

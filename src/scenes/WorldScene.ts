@@ -205,12 +205,12 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private createHud() {
-    const panel = this.add.rectangle(16, 16, 380, 110, 0x111827, 0.72).setOrigin(0);
-    panel.setStrokeStyle(2, 0xf9fafb, 0.4).setScrollFactor(0).setDepth(100);
+    const panel = this.add.rectangle(16, 16, 380, 110, 0x2a1810, 0.75).setOrigin(0);
+    panel.setStrokeStyle(2, 0xe8dcc8, 0.5).setScrollFactor(0).setDepth(100);
 
     this.heroHealthText = this.add
       .text(28, 25, 'Health: 5/5', {
-        color: '#f9fafb',
+        color: '#f5e6d3',
         fontFamily: 'Arial, sans-serif',
         fontSize: '18px',
         fontStyle: 'bold',
@@ -218,16 +218,16 @@ export class WorldScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(101);
 
-    this.add.rectangle(132, 36, 150, 16, 0x450a0a).setOrigin(0, 0.5).setScrollFactor(0).setDepth(101);
+    this.add.rectangle(132, 36, 150, 16, 0x5a2010).setOrigin(0, 0.5).setScrollFactor(0).setDepth(101);
     this.heroHealthFill = this.add
-      .rectangle(132, 36, 150, 16, 0x22c55e)
+      .rectangle(132, 36, 150, 16, 0x7ab85a)
       .setOrigin(0, 0.5)
       .setScrollFactor(0)
       .setDepth(102);
 
     this.objectiveText = this.add
       .text(28, 58, 'Objective: Reach the rescue flag', {
-        color: '#fde68a',
+        color: '#d4a45a',
         fontFamily: 'Arial, sans-serif',
         fontSize: '17px',
         fontStyle: 'bold',
@@ -237,7 +237,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.statusText = this.add
       .text(28, 87, 'Move: A/D or Arrows  Jump: W/Up/Space  Shoot: J/Shift', {
-        color: '#d1d5db',
+        color: '#b8a890',
         fontFamily: 'Arial, sans-serif',
         fontSize: '14px',
       })

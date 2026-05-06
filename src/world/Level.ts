@@ -133,20 +133,21 @@ export class Level {
   }
 
   private drawSky() {
-    // Two-tone sky gradient as background using rectangles. Behind everything.
+    // Volcanic sunset sky gradient matching the cover image. Behind everything.
     const g = this.scene.add.graphics();
     g.setDepth(-100);
     g.setScrollFactor(0);
     const w = this.scene.scale.width;
     const h = this.scene.scale.height;
-    g.fillGradientStyle(0x6dc3ff, 0x6dc3ff, 0xc6e7ff, 0xc6e7ff, 1);
+    // Purple/pink top to orange/gold bottom - volcanic sunset
+    g.fillGradientStyle(0x8b5a7c, 0x8b5a7c, 0xd4956a, 0xd4956a, 1);
     g.fillRect(0, 0, w, h);
 
-    // Distant mountains parallax.
+    // Distant mountains parallax - dark purple/brown silhouettes.
     const mountains = this.scene.add.graphics();
     mountains.setDepth(-90);
     mountains.setScrollFactor(0.2, 0);
-    mountains.fillStyle(0x4f7a4a, 1);
+    mountains.fillStyle(0x5a3d4a, 1);
     for (let i = 0; i < 30; i += 1) {
       const baseX = i * 220;
       mountains.fillTriangle(baseX, 380, baseX + 110, 200, baseX + 220, 380);
@@ -154,7 +155,7 @@ export class Level {
     const hills = this.scene.add.graphics();
     hills.setDepth(-80);
     hills.setScrollFactor(0.45, 0);
-    hills.fillStyle(0x6ea65a, 1);
+    hills.fillStyle(0x4a5d3a, 1);
     for (let i = 0; i < 60; i += 1) {
       const baseX = i * 160;
       hills.fillTriangle(baseX, 440, baseX + 80, 320, baseX + 160, 440);
