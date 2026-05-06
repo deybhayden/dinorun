@@ -12,6 +12,7 @@ export type DinosaurEnemyOptions = {
   loseInterestRadius?: number;
   chaseSpeedMultiplier?: number;
   waitAtPatrolPointMs?: number;
+  contactDamage?: number;
 };
 
 const DINO_BODY_WIDTH = 108;
@@ -24,6 +25,7 @@ const DEFAULT_DETECTION_RADIUS = 300;
 const DEFAULT_LOSE_INTEREST_RADIUS = 430;
 const DEFAULT_CHASE_SPEED_MULTIPLIER = 1.45;
 const DEFAULT_PATROL_WAIT_MS = 550;
+const DEFAULT_CONTACT_DAMAGE = 1;
 const PATROL_POINT_REACHED_DISTANCE = 14;
 
 export class DinosaurEnemy extends Phaser.GameObjects.Container {
@@ -34,6 +36,7 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
   private readonly detectionRadius: number;
   private readonly loseInterestRadius: number;
   private readonly waitAtPatrolPointMs: number;
+  private readonly contactDamageValue: number;
   private readonly bodyShape: Phaser.GameObjects.Ellipse;
   private readonly head: Phaser.GameObjects.Arc;
   private readonly tail: Phaser.GameObjects.Triangle;
@@ -59,6 +62,7 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
     this.detectionRadius = options.detectionRadius ?? DEFAULT_DETECTION_RADIUS;
     this.loseInterestRadius = options.loseInterestRadius ?? DEFAULT_LOSE_INTEREST_RADIUS;
     this.waitAtPatrolPointMs = options.waitAtPatrolPointMs ?? DEFAULT_PATROL_WAIT_MS;
+    this.contactDamageValue = options.contactDamage ?? DEFAULT_CONTACT_DAMAGE;
     this.patrolPoints = this.createPatrolPoints(x, y, options.patrolPoints);
     this.facing = options.facing ?? -1;
 
@@ -144,6 +148,10 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
 
   get behavior() {
     return this.aiState;
+  }
+
+  get contactDamage() {
+    return this.contactDamageValue;
   }
 
   get isAlive() {

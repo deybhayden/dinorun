@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-export type HeroMovementState = 'idle' | 'walk';
+export type HeroMovementState = 'idle' | 'walk' | 'hurt' | 'dead';
 
 type MovementKeys = {
   up: Phaser.Input.Keyboard.Key;
@@ -12,6 +12,8 @@ type MovementKeys = {
 const HERO_HALF_WIDTH = 22;
 const HERO_HALF_HEIGHT = 32;
 const HERO_SPEED = 260;
+const HERO_MAX_HEALTH = 5;
+const HERO_INVULNERABILITY_MS = 900;
 
 export class Hero extends Phaser.GameObjects.Container {
   private readonly cursors: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -21,6 +23,8 @@ export class Hero extends Phaser.GameObjects.Container {
   private readonly leftLeg: Phaser.GameObjects.Rectangle;
   private readonly rightLeg: Phaser.GameObjects.Rectangle;
   private readonly head: Phaser.GameObjects.Arc;
+  private healthValue = HERO_MAX_HEALTH;
+  private invulnerableUntil = 0;
   private movementState: HeroMovementState = 'idle';
   private facing = 1;
 
@@ -55,13 +59,72 @@ export class Hero extends Phaser.GameObjects.Container {
     this.setDepth(10);
 
     scene.add.existing(this);
+    scene.physics.add.existing(this);
+
+    this.arcadeBody
+      .setSize(HERO_HALF_WIDTH * 2, HERO_HALF_HEIGHT * 2)
+      .setOffset(-HERO_HALF_WIDTH, -HERO_HALF_HEIGHT)
+      .setAllowGravity(false)
+      .setCollideWorldBounds(true);
   }
 
   get movement() {
     return this.movementState;
   }
 
+  get health() {
+    return this.healthValue;
+  }
+
+  get maxHealth() {
+    return HERO_MAX_HEALTH;
+  }
+
+  get isAlive() {
+    return this.healthValue > 0;
+  }
+
+  get arcadeBody() {
+    return this.body as Phaser.Physics.Arcade.Body;
+  }
+
+  isInvulnerable(time = this.scene.time.now) {
+    return time < this.invulnerableUntil;
+  }
+
+  takeDamage(amount: number, time = this.scene.time.now) {
+    if (!this.isAlive || this.isInvulnerable(time) || amount <= 0) {
+      return false;
+    }
+
+    this.healthValue = Math.max(0, this.healthValue - amount);
+    this.invulnerableUntil = time + HERO_INVULNERABILITY_MS;
+
+    if (!this.isAlive) {
+      this.setMovementState('dead');
+      this.arcadeBody.setVelocity(0, 0);
+      this.arcadeBody.enable = false;
+      return true;
+    }
+
+    this.setMovementState('hurt');
+    return true;
+  }
+
+  heal(amount: number) {
+    if (amount <= 0) {
+      return;
+    }
+
+    this.healthValue = Math.min(HERO_MAX_HEALTH, this.healthValue + amount);
+  }
+
   update(time: number, delta: number) {
+    if (!this.isAlive) {
+      this.playDeadPose();
+      return;
+    }
+
     const inputX = Number(this.isRightDown()) - Number(this.isLeftDown());
     const inputY = Number(this.isDownDown()) - Number(this.isUpDown());
     const inputLength = Math.hypot(inputX, inputY);
@@ -89,11 +152,13 @@ export class Hero extends Phaser.GameObjects.Container {
 
       this.setMovementState('walk');
       this.playWalkPose(time);
+      this.playDamageFeedback(time);
       return;
     }
 
     this.setMovementState('idle');
     this.playIdlePose(time);
+    this.playDamageFeedback(time);
   }
 
   private isUpDown() {
@@ -118,6 +183,19 @@ export class Hero extends Phaser.GameObjects.Container {
     }
 
     this.movementState = nextState;
+
+    if (nextState === 'hurt') {
+      this.torso.setFillStyle(0xdc2626);
+      this.head.setFillStyle(0xf87171);
+      return;
+    }
+
+    if (nextState === 'dead') {
+      this.torso.setFillStyle(0x4b5563);
+      this.head.setFillStyle(0x9ca3af);
+      return;
+    }
+
     this.torso.setFillStyle(nextState === 'walk' ? 0x1d4ed8 : 0x2563eb);
     this.head.setFillStyle(nextState === 'walk' ? 0xf59e0b : 0xfbbf24);
   }
@@ -140,5 +218,19 @@ export class Hero extends Phaser.GameObjects.Container {
     this.torso.y = -4 + breath;
     this.head.y = -34 + breath;
     this.rotation = 0;
+  }
+
+  private playDamageFeedback(time: number) {
+    this.alpha = this.isInvulnerable(time) ? 0.45 + Math.sin(time * 0.04) * 0.25 : 1;
+  }
+
+  private playDeadPose() {
+    this.setMovementState('dead');
+    this.leftLeg.y = 18;
+    this.rightLeg.y = 18;
+    this.torso.y = -4;
+    this.head.y = -34;
+    this.rotation = Math.PI / 2;
+    this.alpha = 0.8;
   }
 }
