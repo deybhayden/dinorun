@@ -259,8 +259,10 @@ export class WorldScene extends Phaser.Scene {
       this.hero.y,
       this.hero.x + direction.x,
       this.hero.y + direction.y,
-      body.width / 2,
-      body.height / 2,
+      body.width,
+      body.height,
+      body.position.x - this.hero.x,
+      body.position.y - this.hero.y,
     );
 
     this.hero.x = nextPosition.x;

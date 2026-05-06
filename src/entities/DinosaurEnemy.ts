@@ -129,6 +129,7 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
       .setAllowGravity(false)
       .setCollideWorldBounds(true)
       .setMaxSpeed(this.chaseSpeed);
+    this.updateBodyOffset();
   }
 
   get health() {
@@ -371,11 +372,23 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
   private setFacing(nextFacing: -1 | 1) {
     this.facing = nextFacing;
     this.scaleX = nextFacing;
+    this.updateBodyOffset();
 
     // The whole container is mirrored to turn the dinosaur around. Counter-scale
     // text labels so health and behavior remain readable in either direction.
     this.healthText.scaleX = nextFacing;
     this.behaviorText.scaleX = nextFacing;
+  }
+
+  private updateBodyOffset() {
+    if (!this.body) {
+      return;
+    }
+
+    this.arcadeBody.setOffset(
+      this.facing > 0 ? DINO_BODY_OFFSET_X : -DINO_BODY_OFFSET_X,
+      DINO_BODY_OFFSET_Y,
+    );
   }
 
   private setMovementState(nextState: DinosaurMovementState) {

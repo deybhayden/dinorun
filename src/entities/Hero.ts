@@ -11,6 +11,10 @@ type MovementKeys = {
 
 const HERO_HALF_WIDTH = 22;
 const HERO_HALF_HEIGHT = 32;
+const HERO_COLLISION_WIDTH = 32;
+const HERO_COLLISION_HEIGHT = 20;
+const HERO_COLLISION_OFFSET_X = -HERO_COLLISION_WIDTH / 2;
+const HERO_COLLISION_OFFSET_Y = 10;
 const HERO_SPEED = 260;
 const HERO_MAX_HEALTH = 5;
 const HERO_INVULNERABILITY_MS = 900;
@@ -81,10 +85,11 @@ export class Hero extends Phaser.GameObjects.Container {
     scene.physics.add.existing(this);
 
     this.arcadeBody
-      .setSize(HERO_HALF_WIDTH * 2, HERO_HALF_HEIGHT * 2)
-      .setOffset(-HERO_HALF_WIDTH, -HERO_HALF_HEIGHT)
+      .setSize(HERO_COLLISION_WIDTH, HERO_COLLISION_HEIGHT)
+      .setOffset(HERO_COLLISION_OFFSET_X, HERO_COLLISION_OFFSET_Y)
       .setAllowGravity(false)
       .setCollideWorldBounds(true);
+    this.updateBodyOffset();
   }
 
   get movement() {
@@ -238,6 +243,18 @@ export class Hero extends Phaser.GameObjects.Container {
   private setFacing(nextFacing: -1 | 1) {
     this.facing = nextFacing;
     this.scaleX = nextFacing;
+    this.updateBodyOffset();
+  }
+
+  private updateBodyOffset() {
+    if (!this.body) {
+      return;
+    }
+
+    this.arcadeBody.setOffset(
+      this.facing > 0 ? HERO_COLLISION_OFFSET_X : -HERO_COLLISION_OFFSET_X,
+      HERO_COLLISION_OFFSET_Y,
+    );
   }
 
   private setMovementState(nextState: HeroMovementState) {

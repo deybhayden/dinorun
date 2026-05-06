@@ -110,45 +110,77 @@ export class AdventureMap {
     currentY: number,
     targetX: number,
     targetY: number,
-    halfWidth: number,
-    halfHeight: number,
+    collisionWidth: number,
+    collisionHeight: number,
+    collisionOffsetX = -collisionWidth / 2,
+    collisionOffsetY = -collisionHeight / 2,
   ) {
-    let x = Phaser.Math.Clamp(targetX, this.worldBounds.left + halfWidth, this.worldBounds.right - halfWidth);
+    let x = Phaser.Math.Clamp(
+      targetX,
+      this.worldBounds.left - collisionOffsetX,
+      this.worldBounds.right - collisionOffsetX - collisionWidth,
+    );
     let y = currentY;
     const dx = x - currentX;
 
     if (dx !== 0) {
-      const horizontalBounds = this.createActorRectangle(x, y, halfWidth, halfHeight);
+      const horizontalBounds = this.createActorRectangle(
+        x,
+        y,
+        collisionWidth,
+        collisionHeight,
+        collisionOffsetX,
+        collisionOffsetY,
+      );
 
       this.collisionRectangles.forEach((blocked) => {
         if (!Phaser.Geom.Intersects.RectangleToRectangle(horizontalBounds, blocked)) {
           return;
         }
 
-        x = dx > 0 ? blocked.left - halfWidth : blocked.right + halfWidth;
-        horizontalBounds.x = x - halfWidth;
+        x = dx > 0 ? blocked.left - collisionOffsetX - collisionWidth : blocked.right - collisionOffsetX;
+        horizontalBounds.x = x + collisionOffsetX;
       });
     }
 
-    y = Phaser.Math.Clamp(targetY, this.worldBounds.top + halfHeight, this.worldBounds.bottom - halfHeight);
+    y = Phaser.Math.Clamp(
+      targetY,
+      this.worldBounds.top - collisionOffsetY,
+      this.worldBounds.bottom - collisionOffsetY - collisionHeight,
+    );
     const dy = y - currentY;
 
     if (dy !== 0) {
-      const verticalBounds = this.createActorRectangle(x, y, halfWidth, halfHeight);
+      const verticalBounds = this.createActorRectangle(
+        x,
+        y,
+        collisionWidth,
+        collisionHeight,
+        collisionOffsetX,
+        collisionOffsetY,
+      );
 
       this.collisionRectangles.forEach((blocked) => {
         if (!Phaser.Geom.Intersects.RectangleToRectangle(verticalBounds, blocked)) {
           return;
         }
 
-        y = dy > 0 ? blocked.top - halfHeight : blocked.bottom + halfHeight;
-        verticalBounds.y = y - halfHeight;
+        y = dy > 0 ? blocked.top - collisionOffsetY - collisionHeight : blocked.bottom - collisionOffsetY;
+        verticalBounds.y = y + collisionOffsetY;
       });
     }
 
     return new Phaser.Math.Vector2(
-      Phaser.Math.Clamp(x, this.worldBounds.left + halfWidth, this.worldBounds.right - halfWidth),
-      Phaser.Math.Clamp(y, this.worldBounds.top + halfHeight, this.worldBounds.bottom - halfHeight),
+      Phaser.Math.Clamp(
+        x,
+        this.worldBounds.left - collisionOffsetX,
+        this.worldBounds.right - collisionOffsetX - collisionWidth,
+      ),
+      Phaser.Math.Clamp(
+        y,
+        this.worldBounds.top - collisionOffsetY,
+        this.worldBounds.bottom - collisionOffsetY - collisionHeight,
+      ),
     );
   }
 
@@ -163,11 +195,14 @@ export class AdventureMap {
   private createGroundTiles() {
     MAP_ROWS.forEach((row, tileY) => {
       [...row].forEach((tile, tileX) => {
-        const centerX = tileX * TILE_SIZE + TILE_SIZE / 2;
-        const centerY = tileY * TILE_SIZE + TILE_SIZE / 2;
+        const tileLeft = tileX * TILE_SIZE;
+        const tileTop = tileY * TILE_SIZE;
+        const centerX = tileLeft + TILE_SIZE / 2;
+        const centerY = tileTop + TILE_SIZE / 2;
 
         this.scene.add
-          .rectangle(centerX, centerY, TILE_SIZE, TILE_SIZE, TILE_COLORS[tile] ?? TILE_COLORS['.'])
+          .rectangle(tileLeft, tileTop, TILE_SIZE, TILE_SIZE, TILE_COLORS[tile] ?? TILE_COLORS['.'])
+          .setOrigin(0)
           .setStrokeStyle(1, TILE_STROKES[tile] ?? TILE_STROKES['.'], 0.28)
           .setDepth(0);
 
@@ -216,30 +251,33 @@ export class AdventureMap {
     MAP_ROWS.forEach((row, tileY) => {
       let runStart: number | null = null;
 
-      [...row].forEach((tile, tileX) => {
-        const isBlocked = BLOCKED_TILES.has(tile);
+      for (let tileX = 0; tileX <= MAP_WIDTH_TILES; tileX += 1) {
+        const isBlocked = tileX < MAP_WIDTH_TILES && BLOCKED_TILES.has(row[tileX]);
 
-        if (isBlocked && runStart === null) {
-          runStart = tileX;
+        if (isBlocked) {
+          runStart ??= tileX;
+          continue;
         }
 
-        if ((!isBlocked || tileX === MAP_WIDTH_TILES - 1) && runStart !== null) {
-          const runEnd = isBlocked && tileX === MAP_WIDTH_TILES - 1 ? tileX : tileX - 1;
-          const runWidth = runEnd - runStart + 1;
-
-          this.collisionRectangles.push(
-            new Phaser.Geom.Rectangle(runStart * TILE_SIZE, tileY * TILE_SIZE, runWidth * TILE_SIZE, TILE_SIZE),
-          );
-          runStart = null;
+        if (runStart === null) {
+          continue;
         }
-      });
+
+        const runWidth = tileX - runStart;
+
+        this.collisionRectangles.push(
+          new Phaser.Geom.Rectangle(runStart * TILE_SIZE, tileY * TILE_SIZE, runWidth * TILE_SIZE, TILE_SIZE),
+        );
+        runStart = null;
+      }
     });
   }
 
   private createCollisionBodies() {
     this.collisionRectangles.forEach((rectangle) => {
       const body = this.scene.add
-        .rectangle(rectangle.centerX, rectangle.centerY, rectangle.width, rectangle.height, 0xef4444, 0)
+        .rectangle(rectangle.x, rectangle.y, rectangle.width, rectangle.height, 0xef4444, 0)
+        .setOrigin(0)
         .setDepth(3)
         .setData('collision', true);
 
@@ -247,7 +285,8 @@ export class AdventureMap {
       this.collisionBodies.push(body);
 
       this.scene.add
-        .rectangle(rectangle.centerX, rectangle.centerY, rectangle.width, rectangle.height)
+        .rectangle(rectangle.x, rectangle.y, rectangle.width, rectangle.height)
+        .setOrigin(0)
         .setStrokeStyle(2, 0xfef3c7, 0.16)
         .setDepth(3);
     });
@@ -274,7 +313,19 @@ export class AdventureMap {
       .setDepth(4);
   }
 
-  private createActorRectangle(x: number, y: number, halfWidth: number, halfHeight: number) {
-    return new Phaser.Geom.Rectangle(x - halfWidth, y - halfHeight, halfWidth * 2, halfHeight * 2);
+  private createActorRectangle(
+    x: number,
+    y: number,
+    collisionWidth: number,
+    collisionHeight: number,
+    collisionOffsetX: number,
+    collisionOffsetY: number,
+  ) {
+    return new Phaser.Geom.Rectangle(
+      x + collisionOffsetX,
+      y + collisionOffsetY,
+      collisionWidth,
+      collisionHeight,
+    );
   }
 }
