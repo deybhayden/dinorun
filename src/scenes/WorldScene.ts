@@ -32,10 +32,13 @@ export class WorldScene extends Phaser.Scene {
 
   update(time: number, delta: number) {
     this.hero.update(time, delta);
-    this.dinosaurs.forEach((dinosaur) => dinosaur.update(time));
+    this.dinosaurs.forEach((dinosaur) => dinosaur.update(time, this.hero));
 
     const dinosaurStatus = this.dinosaurs
-      .map((dinosaur, index) => `D${index + 1}: ${dinosaur.health}/${dinosaur.maxHealth} ${dinosaur.movement}`)
+      .map(
+        (dinosaur, index) =>
+          `D${index + 1}: ${dinosaur.health}/${dinosaur.maxHealth} ${dinosaur.behavior} ${dinosaur.movement}`,
+      )
       .join('  ');
 
     this.statusText.setText(`Hero: ${this.hero.movement}  ${dinosaurStatus}`);
@@ -47,8 +50,26 @@ export class WorldScene extends Phaser.Scene {
 
   private createDinosaurs() {
     this.dinosaurs = [
-      new DinosaurEnemy(this, 860, 505, { maxHealth: 3, movementSpeed: 115, facing: -1 }),
-      new DinosaurEnemy(this, 1220, 710, { maxHealth: 4, movementSpeed: 95, facing: 1 }),
+      new DinosaurEnemy(this, 860, 505, {
+        maxHealth: 3,
+        movementSpeed: 115,
+        facing: -1,
+        patrolPoints: [
+          { x: 760, y: 505 },
+          { x: 1040, y: 505 },
+          { x: 1040, y: 650 },
+        ],
+      }),
+      new DinosaurEnemy(this, 1220, 710, {
+        maxHealth: 4,
+        movementSpeed: 95,
+        facing: 1,
+        detectionRadius: 340,
+        patrolPoints: [
+          { x: 1120, y: 710 },
+          { x: 1450, y: 710 },
+        ],
+      }),
     ];
   }
 

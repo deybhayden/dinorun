@@ -1,11 +1,17 @@
 import Phaser from 'phaser';
 
 export type DinosaurMovementState = 'idle' | 'walk' | 'hurt' | 'dead';
+export type DinosaurAiState = 'patrol' | 'chase' | 'return';
 
 export type DinosaurEnemyOptions = {
   maxHealth?: number;
   movementSpeed?: number;
   facing?: -1 | 1;
+  patrolPoints?: Phaser.Types.Math.Vector2Like[];
+  detectionRadius?: number;
+  loseInterestRadius?: number;
+  chaseSpeedMultiplier?: number;
+  waitAtPatrolPointMs?: number;
 };
 
 const DINO_BODY_WIDTH = 108;
@@ -14,20 +20,34 @@ const DINO_BODY_OFFSET_X = -54;
 const DINO_BODY_OFFSET_Y = -52;
 const DEFAULT_DINO_HEALTH = 3;
 const DEFAULT_DINO_SPEED = 115;
+const DEFAULT_DETECTION_RADIUS = 300;
+const DEFAULT_LOSE_INTEREST_RADIUS = 430;
+const DEFAULT_CHASE_SPEED_MULTIPLIER = 1.45;
+const DEFAULT_PATROL_WAIT_MS = 550;
+const PATROL_POINT_REACHED_DISTANCE = 14;
 
 export class DinosaurEnemy extends Phaser.GameObjects.Container {
   private readonly maxHealthValue: number;
   private readonly speed: number;
+  private readonly chaseSpeed: number;
+  private readonly patrolPoints: Phaser.Math.Vector2[];
+  private readonly detectionRadius: number;
+  private readonly loseInterestRadius: number;
+  private readonly waitAtPatrolPointMs: number;
   private readonly bodyShape: Phaser.GameObjects.Ellipse;
   private readonly head: Phaser.GameObjects.Arc;
   private readonly tail: Phaser.GameObjects.Triangle;
   private readonly leftLeg: Phaser.GameObjects.Rectangle;
   private readonly rightLeg: Phaser.GameObjects.Rectangle;
   private readonly healthText: Phaser.GameObjects.Text;
+  private readonly behaviorText: Phaser.GameObjects.Text;
   private healthValue: number;
   private movementState: DinosaurMovementState = 'idle';
+  private aiState: DinosaurAiState = 'patrol';
   private facing: -1 | 1;
   private hurtUntil = 0;
+  private patrolIndex = 0;
+  private waitingUntil = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, options: DinosaurEnemyOptions = {}) {
     super(scene, x, y);
@@ -35,6 +55,11 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
     this.maxHealthValue = options.maxHealth ?? DEFAULT_DINO_HEALTH;
     this.healthValue = this.maxHealthValue;
     this.speed = options.movementSpeed ?? DEFAULT_DINO_SPEED;
+    this.chaseSpeed = this.speed * (options.chaseSpeedMultiplier ?? DEFAULT_CHASE_SPEED_MULTIPLIER);
+    this.detectionRadius = options.detectionRadius ?? DEFAULT_DETECTION_RADIUS;
+    this.loseInterestRadius = options.loseInterestRadius ?? DEFAULT_LOSE_INTEREST_RADIUS;
+    this.waitAtPatrolPointMs = options.waitAtPatrolPointMs ?? DEFAULT_PATROL_WAIT_MS;
+    this.patrolPoints = this.createPatrolPoints(x, y, options.patrolPoints);
     this.facing = options.facing ?? -1;
 
     const shadow = scene.add.ellipse(0, 20, 118, 24, 0x000000, 0.16);
@@ -50,13 +75,24 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
     this.rightLeg = scene.add.rectangle(25, 11, 13, 32, 0x14532d);
 
     this.healthText = scene.add
-      .text(0, -98, `${this.healthValue}/${this.maxHealthValue}`, {
+      .text(0, -108, `${this.healthValue}/${this.maxHealthValue}`, {
         color: '#f8fafc',
         fontFamily: 'Arial, sans-serif',
         fontSize: '16px',
         fontStyle: 'bold',
         stroke: '#052e16',
         strokeThickness: 4,
+      })
+      .setOrigin(0.5);
+
+    this.behaviorText = scene.add
+      .text(0, -88, this.aiState, {
+        color: '#dcfce7',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '13px',
+        fontStyle: 'bold',
+        stroke: '#052e16',
+        strokeThickness: 3,
       })
       .setOrigin(0.5);
 
@@ -73,10 +109,11 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
       eye,
       tooth,
       this.healthText,
+      this.behaviorText,
     ]);
     this.setSize(DINO_BODY_WIDTH, DINO_BODY_HEIGHT);
     this.setDepth(8);
-    this.scaleX = this.facing;
+    this.setFacing(this.facing);
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -86,7 +123,7 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
       .setOffset(DINO_BODY_OFFSET_X, DINO_BODY_OFFSET_Y)
       .setAllowGravity(false)
       .setCollideWorldBounds(true)
-      .setMaxSpeed(this.speed);
+      .setMaxSpeed(this.chaseSpeed);
   }
 
   get health() {
@@ -105,6 +142,10 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
     return this.movementState;
   }
 
+  get behavior() {
+    return this.aiState;
+  }
+
   get isAlive() {
     return this.healthValue > 0;
   }
@@ -113,11 +154,13 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
     return this.body as Phaser.Physics.Arcade.Body;
   }
 
-  update(time: number) {
+  update(time: number, target?: Phaser.Types.Math.Vector2Like) {
     if (!this.isAlive) {
       this.playDeadPose();
       return;
     }
+
+    this.updateAi(time, target);
 
     if (time < this.hurtUntil) {
       this.setMovementState('hurt');
@@ -128,8 +171,7 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
     const velocity = this.arcadeBody.velocity;
 
     if (velocity.lengthSq() > 1) {
-      this.facing = velocity.x >= 0 ? 1 : -1;
-      this.scaleX = this.facing;
+      this.setFacing(velocity.x >= 0 ? 1 : -1);
       this.setMovementState('walk');
       this.playWalkPose(time);
       return;
@@ -139,7 +181,7 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
     this.playIdlePose(time);
   }
 
-  setMoveDirection(directionX: number, directionY = 0) {
+  setMoveDirection(directionX: number, directionY = 0, movementSpeed = this.speed) {
     if (!this.isAlive) {
       this.arcadeBody.setVelocity(0, 0);
       return;
@@ -152,7 +194,7 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
       return;
     }
 
-    this.arcadeBody.setVelocity((directionX / length) * this.speed, (directionY / length) * this.speed);
+    this.arcadeBody.setVelocity((directionX / length) * movementSpeed, (directionY / length) * movementSpeed);
   }
 
   takeDamage(amount: number) {
@@ -169,6 +211,150 @@ export class DinosaurEnemy extends Phaser.GameObjects.Container {
       this.arcadeBody.enable = false;
       this.setMovementState('dead');
     }
+  }
+
+  private createPatrolPoints(x: number, y: number, patrolPoints?: Phaser.Types.Math.Vector2Like[]) {
+    const points = patrolPoints?.length ? patrolPoints : [{ x, y }, { x: x + 220, y }];
+
+    return points.map((point) => new Phaser.Math.Vector2(point.x, point.y));
+  }
+
+  private updateAi(time: number, target?: Phaser.Types.Math.Vector2Like) {
+    if (!target) {
+      if (this.aiState === 'chase') {
+        this.setAiState('return');
+      }
+
+      this.updatePatrolOrReturn(time);
+      return;
+    }
+
+    const targetDistance = Phaser.Math.Distance.Between(this.x, this.y, target.x, target.y);
+
+    if (this.aiState === 'chase') {
+      if (targetDistance > this.loseInterestRadius) {
+        this.setAiState('return');
+      }
+    } else if (targetDistance <= this.detectionRadius) {
+      this.setAiState('chase');
+    }
+
+    if (this.aiState === 'chase') {
+      this.setMoveDirection(target.x - this.x, target.y - this.y, this.chaseSpeed);
+      return;
+    }
+
+    this.updatePatrolOrReturn(time);
+  }
+
+  private updatePatrolOrReturn(time: number) {
+    if (this.aiState === 'return') {
+      this.returnToPatrol(time);
+      return;
+    }
+
+    this.patrol(time);
+  }
+
+  private patrol(time: number) {
+    if (this.patrolPoints.length < 2) {
+      this.setMoveDirection(0);
+      return;
+    }
+
+    const point = this.patrolPoints[this.patrolIndex];
+
+    if (this.isAtPoint(point)) {
+      this.setMoveDirection(0);
+
+      if (this.waitingUntil === 0) {
+        this.waitingUntil = time + this.waitAtPatrolPointMs;
+      }
+
+      if (time >= this.waitingUntil) {
+        this.patrolIndex = (this.patrolIndex + 1) % this.patrolPoints.length;
+        this.waitingUntil = 0;
+      }
+
+      return;
+    }
+
+    this.waitingUntil = 0;
+    this.moveToward(point, this.speed);
+  }
+
+  private returnToPatrol(time: number) {
+    if (!this.patrolPoints.length) {
+      this.setAiState('patrol');
+      this.setMoveDirection(0);
+      return;
+    }
+
+    const point = this.patrolPoints[this.patrolIndex];
+
+    if (this.isAtPoint(point)) {
+      this.setAiState('patrol');
+      this.patrol(time);
+      return;
+    }
+
+    this.moveToward(point, this.speed);
+  }
+
+  private moveToward(point: Phaser.Types.Math.Vector2Like, movementSpeed: number) {
+    this.setMoveDirection(point.x - this.x, point.y - this.y, movementSpeed);
+  }
+
+  private isAtPoint(point: Phaser.Types.Math.Vector2Like) {
+    return Phaser.Math.Distance.Between(this.x, this.y, point.x, point.y) <= PATROL_POINT_REACHED_DISTANCE;
+  }
+
+  private setAiState(nextState: DinosaurAiState) {
+    if (this.aiState === nextState) {
+      return;
+    }
+
+    this.aiState = nextState;
+    this.behaviorText.setText(nextState);
+
+    if (nextState === 'return') {
+      this.patrolIndex = this.findNearestPatrolPointIndex();
+      this.waitingUntil = 0;
+    }
+
+    if (nextState === 'chase') {
+      this.waitingUntil = 0;
+    }
+  }
+
+  private findNearestPatrolPointIndex() {
+    if (!this.patrolPoints.length) {
+      return 0;
+    }
+
+    let nearestIndex = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    this.patrolPoints.forEach((point, index) => {
+      const distance = Phaser.Math.Distance.Between(this.x, this.y, point.x, point.y);
+
+      if (distance < nearestDistance) {
+        nearestIndex = index;
+        nearestDistance = distance;
+      }
+    });
+
+    return nearestIndex;
+  }
+
+  private setFacing(nextFacing: -1 | 1) {
+    this.facing = nextFacing;
+    this.scaleX = nextFacing;
+
+    // The whole container is mirrored to turn the dinosaur around. Counter-scale
+    // text labels so health and behavior remain readable in either direction.
+    this.healthText.scaleX = nextFacing;
+    this.behaviorText.scaleX = nextFacing;
   }
 
   private setMovementState(nextState: DinosaurMovementState) {
