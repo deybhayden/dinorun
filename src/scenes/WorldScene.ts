@@ -1,14 +1,12 @@
 import Phaser from 'phaser';
 import { DinosaurEnemy } from '../entities/DinosaurEnemy';
 import { Hero } from '../entities/Hero';
+import { AdventureMap } from '../world/AdventureMap';
 
-const WORLD_WIDTH = 1920;
-const WORLD_HEIGHT = 1080;
-const GROUND_Y = 820;
 const CONTACT_KNOCKBACK_DISTANCE = 42;
 
 export class WorldScene extends Phaser.Scene {
-  private readonly worldBounds = new Phaser.Geom.Rectangle(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+  private adventureMap!: AdventureMap;
   private hero!: Hero;
   private dinosaurs: DinosaurEnemy[] = [];
   private heroHealthFill!: Phaser.GameObjects.Rectangle;
@@ -25,15 +23,26 @@ export class WorldScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    this.adventureMap = new AdventureMap(this);
+    this.cameras.main.setBounds(
+      this.adventureMap.worldBounds.x,
+      this.adventureMap.worldBounds.y,
+      this.adventureMap.worldBounds.width,
+      this.adventureMap.worldBounds.height,
+    );
 
-    this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    this.physics.world.setBounds(
+      this.adventureMap.worldBounds.x,
+      this.adventureMap.worldBounds.y,
+      this.adventureMap.worldBounds.width,
+      this.adventureMap.worldBounds.height,
+    );
     this.restartKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R);
 
-    this.createPlaceholderBackground();
     this.createTitleCard();
     this.createHero();
     this.createDinosaurs();
+    this.createTerrainCollisions();
     this.createHud();
 
     this.cameras.main.startFollow(this.hero, true, 0.12, 0.12);
@@ -59,61 +68,27 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private createHero() {
-    this.hero = new Hero(this, 480, 420, this.worldBounds);
+    this.hero = new Hero(this, this.adventureMap.heroSpawn.x, this.adventureMap.heroSpawn.y);
   }
 
   private createDinosaurs() {
-    this.dinosaurs = [
-      new DinosaurEnemy(this, 860, 505, {
-        maxHealth: 3,
-        movementSpeed: 115,
-        facing: -1,
-        patrolPoints: [
-          { x: 760, y: 505 },
-          { x: 1040, y: 505 },
-          { x: 1040, y: 650 },
-        ],
-      }),
-      new DinosaurEnemy(this, 1220, 710, {
-        maxHealth: 4,
-        movementSpeed: 95,
-        facing: 1,
-        detectionRadius: 340,
-        patrolPoints: [
-          { x: 1120, y: 710 },
-          { x: 1450, y: 710 },
-        ],
-      }),
-    ];
+    this.dinosaurs = this.adventureMap.dinosaurSpawns.map(
+      (spawn) =>
+        new DinosaurEnemy(this, spawn.x, spawn.y, {
+          maxHealth: spawn.maxHealth,
+          movementSpeed: spawn.movementSpeed,
+          facing: spawn.facing,
+          detectionRadius: spawn.detectionRadius,
+          patrolPoints: spawn.patrolPoints,
+        }),
+    );
   }
 
-  private createPlaceholderBackground() {
-    this.cameras.main.setBackgroundColor('#86efac');
-
-    this.add.rectangle(WORLD_WIDTH / 2, GROUND_Y + 120, WORLD_WIDTH, 280, 0x65a30d);
-    this.add.rectangle(WORLD_WIDTH / 2, GROUND_Y + 230, WORLD_WIDTH, 120, 0x4d7c0f);
-
-    this.add.circle(1680, 140, 56, 0xfacc15);
-
-    this.add.triangle(190, GROUND_Y - 115, 0, 170, 170, 0, 340, 170, 0x6b7280);
-    this.add.triangle(430, GROUND_Y - 100, 0, 210, 230, 0, 460, 210, 0x4b5563);
-    this.add.triangle(340, GROUND_Y - 130, 0, 96, 110, 0, 220, 96, 0xf3f4f6);
-    this.add.triangle(1180, GROUND_Y - 95, 0, 180, 190, 0, 380, 180, 0x64748b);
-    this.add.triangle(1285, GROUND_Y - 120, 0, 88, 100, 0, 200, 88, 0xf8fafc);
-
-    const graphics = this.add.graphics();
-    graphics.lineStyle(2, 0x166534, 0.3);
-
-    for (let x = 0; x <= WORLD_WIDTH; x += 64) {
-      graphics.lineBetween(x, 0, x, WORLD_HEIGHT);
-    }
-
-    for (let y = 0; y <= WORLD_HEIGHT; y += 64) {
-      graphics.lineBetween(0, y, WORLD_WIDTH, y);
-    }
-
-    graphics.lineStyle(6, 0x14532d, 0.8);
-    graphics.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+  private createTerrainCollisions() {
+    this.physics.add.collider(this.hero, this.adventureMap.blockers);
+    this.dinosaurs.forEach((dinosaur) => {
+      this.physics.add.collider(dinosaur, this.adventureMap.blockers);
+    });
   }
 
   private createTitleCard() {
@@ -210,17 +185,8 @@ export class WorldScene extends Phaser.Scene {
       `Objective: Defeat all dinosaurs (${defeatedDinosaurs}/${this.dinosaurs.length})${allDinosaursDefeated ? ' complete' : ''}`,
     );
 
-    const dinosaurStatus = this.dinosaurs
-      .map(
-        (dinosaur, index) =>
-          `D${index + 1}: ${dinosaur.health}/${dinosaur.maxHealth} ${dinosaur.behavior} ${dinosaur.movement}`,
-      )
-      .join('  ');
-
     this.statusText.setText(
-      this.gameOver
-        ? `Press R to restart  ${dinosaurStatus}`
-        : `Move: WASD / Arrow Keys  Attack: Space / J  ${dinosaurStatus}`,
+      this.gameOver ? 'Press R to restart' : 'Move: WASD / Arrow Keys  Attack: Space / J',
     );
   }
 
@@ -287,8 +253,20 @@ export class WorldScene extends Phaser.Scene {
 
     direction.normalize().scale(CONTACT_KNOCKBACK_DISTANCE);
 
-    this.hero.x = Phaser.Math.Clamp(this.hero.x + direction.x, this.worldBounds.left, this.worldBounds.right);
-    this.hero.y = Phaser.Math.Clamp(this.hero.y + direction.y, this.worldBounds.top, this.worldBounds.bottom);
+    const body = this.hero.arcadeBody;
+    const nextPosition = this.adventureMap.resolveActorMovement(
+      this.hero.x,
+      this.hero.y,
+      this.hero.x + direction.x,
+      this.hero.y + direction.y,
+      body.width / 2,
+      body.height / 2,
+    );
+
+    this.hero.x = nextPosition.x;
+    this.hero.y = nextPosition.y;
+    body.setVelocity(0, 0);
+    body.updateFromGameObject();
   }
 
   private showGameOver() {

@@ -25,7 +25,6 @@ export class Hero extends Phaser.GameObjects.Container {
   private readonly cursors: Phaser.Types.Input.Keyboard.CursorKeys;
   private readonly wasd: MovementKeys;
   private readonly attackKeys: Phaser.Input.Keyboard.Key[];
-  private readonly worldBounds: Phaser.Geom.Rectangle;
   private readonly torso: Phaser.GameObjects.Rectangle;
   private readonly leftLeg: Phaser.GameObjects.Rectangle;
   private readonly rightLeg: Phaser.GameObjects.Rectangle;
@@ -41,7 +40,7 @@ export class Hero extends Phaser.GameObjects.Container {
   private nextAttackAt = 0;
   private currentAttackId = 0;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, worldBounds: Phaser.Geom.Rectangle) {
+  constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
 
     const keyboard = scene.input.keyboard;
@@ -50,7 +49,6 @@ export class Hero extends Phaser.GameObjects.Container {
       throw new Error('Keyboard input is required for hero movement.');
     }
 
-    this.worldBounds = worldBounds;
     this.cursors = keyboard.createCursorKeys();
     this.wasd = {
       up: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
@@ -162,7 +160,7 @@ export class Hero extends Phaser.GameObjects.Container {
     this.healthValue = Math.min(HERO_MAX_HEALTH, this.healthValue + amount);
   }
 
-  update(time: number, delta: number) {
+  update(time: number, _delta: number) {
     if (!this.isAlive) {
       this.playDeadPose();
       return;
@@ -173,22 +171,12 @@ export class Hero extends Phaser.GameObjects.Container {
     const inputX = Number(this.isRightDown()) - Number(this.isLeftDown());
     const inputY = Number(this.isDownDown()) - Number(this.isUpDown());
     const inputLength = Math.hypot(inputX, inputY);
-    const seconds = delta / 1000;
 
     if (inputLength > 0) {
       const normalizedX = inputX / inputLength;
       const normalizedY = inputY / inputLength;
 
-      this.x = Phaser.Math.Clamp(
-        this.x + normalizedX * HERO_SPEED * seconds,
-        this.worldBounds.x + HERO_HALF_WIDTH,
-        this.worldBounds.x + this.worldBounds.width - HERO_HALF_WIDTH,
-      );
-      this.y = Phaser.Math.Clamp(
-        this.y + normalizedY * HERO_SPEED * seconds,
-        this.worldBounds.y + HERO_HALF_HEIGHT,
-        this.worldBounds.y + this.worldBounds.height - HERO_HALF_HEIGHT,
-      );
+      this.arcadeBody.setVelocity(normalizedX * HERO_SPEED, normalizedY * HERO_SPEED);
 
       if (inputX !== 0 && !this.isAttacking(time)) {
         this.setFacing(inputX > 0 ? 1 : -1);
@@ -197,6 +185,7 @@ export class Hero extends Phaser.GameObjects.Container {
       this.setMovementState('walk');
       this.playWalkPose(time);
     } else {
+      this.arcadeBody.setVelocity(0, 0);
       this.setMovementState('idle');
       this.playIdlePose(time);
     }
@@ -208,7 +197,6 @@ export class Hero extends Phaser.GameObjects.Container {
 
     this.updateAttackIndicator(time);
     this.playDamageFeedback(time);
-    this.arcadeBody.updateFromGameObject();
   }
 
   private isUpDown() {

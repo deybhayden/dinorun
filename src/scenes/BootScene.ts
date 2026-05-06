@@ -1,21 +1,27 @@
 import Phaser from 'phaser';
 
+const coverImageUrl = new URL('../../assets/images/dino-run-cover.png', import.meta.url).href;
+
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('BootScene');
   }
 
+  preload() {
+    this.load.image('dino-run-cover', coverImageUrl);
+  }
+
   create() {
+    const width = this.scale.width;
+    const height = this.scale.height;
+
     this.cameras.main.setBackgroundColor('#111827');
 
-    this.add
-      .text(this.scale.width / 2, this.scale.height / 2, 'Loading Dino Run...', {
-        color: '#f9fafb',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '28px',
-      })
-      .setOrigin(0.5);
+    const cover = this.add.image(width / 2, height / 2, 'dino-run-cover');
+    cover.setScale(Math.min(width / cover.width, height / cover.height));
 
-    this.scene.start('PreloadScene');
+    this.time.delayedCall(900, () => {
+      this.scene.start('PreloadScene');
+    });
   }
 }
