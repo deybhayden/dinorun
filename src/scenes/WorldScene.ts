@@ -113,7 +113,7 @@ export class WorldScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(480, 214, 'Use WASD or arrow keys to explore. Press Space or J to attack.', {
+      .text(480, 214, 'Move with WASD/Arrows. Hold a direction + Space/J to attack that way.', {
         color: '#374151',
         fontFamily: 'Arial, sans-serif',
         fontSize: '20px',
@@ -216,7 +216,7 @@ export class WorldScene extends Phaser.Scene {
     if (this.gameOver || this.victory) {
       this.statusText.setText('Press R to restart');
     } else {
-      this.statusText.setText('Move: WASD / Arrow Keys  Attack: Space / J');
+      this.statusText.setText('Move: WASD / Arrows  Attack: Space / J (hold a direction)');
     }
   }
 

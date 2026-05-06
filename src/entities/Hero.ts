@@ -38,7 +38,8 @@ export class Hero extends Phaser.GameObjects.Container {
   private invulnerableUntil = 0;
   private movementState: HeroMovementState = 'idle';
   private facing: -1 | 1 = 1;
-  private attackFacing: -1 | 1 = 1;
+  private attackDirX: -1 | 0 | 1 = 1;
+  private attackDirY: -1 | 0 | 1 = 0;
   private attackActiveUntil = 0;
   private attackUntil = 0;
   private nextAttackAt = 0;
@@ -133,7 +134,21 @@ export class Hero extends Phaser.GameObjects.Container {
       return null;
     }
 
-    const x = this.attackFacing > 0 ? this.x + HERO_HALF_WIDTH : this.x - HERO_HALF_WIDTH - HERO_ATTACK_RANGE;
+    if (this.attackDirY !== 0) {
+      const y =
+        this.attackDirY > 0
+          ? this.y + HERO_HALF_HEIGHT
+          : this.y - HERO_HALF_HEIGHT - HERO_ATTACK_RANGE;
+      return new Phaser.Geom.Rectangle(
+        this.x - HERO_ATTACK_HEIGHT / 2,
+        y,
+        HERO_ATTACK_HEIGHT,
+        HERO_ATTACK_RANGE,
+      );
+    }
+
+    const dirX = this.attackDirX === 0 ? this.facing : this.attackDirX;
+    const x = dirX > 0 ? this.x + HERO_HALF_WIDTH : this.x - HERO_HALF_WIDTH - HERO_ATTACK_RANGE;
 
     return new Phaser.Geom.Rectangle(x, this.y - HERO_ATTACK_HEIGHT / 2, HERO_ATTACK_RANGE, HERO_ATTACK_HEIGHT);
   }
@@ -233,7 +248,21 @@ export class Hero extends Phaser.GameObjects.Container {
       return;
     }
 
-    this.attackFacing = this.facing;
+    const horizInput = (Number(this.isRightDown()) - Number(this.isLeftDown())) as -1 | 0 | 1;
+    const vertInput = (Number(this.isDownDown()) - Number(this.isUpDown())) as -1 | 0 | 1;
+
+    if (horizInput !== 0) {
+      this.attackDirX = horizInput;
+      this.attackDirY = 0;
+      this.setFacing(horizInput === 1 ? 1 : -1);
+    } else if (vertInput !== 0) {
+      this.attackDirX = 0;
+      this.attackDirY = vertInput;
+    } else {
+      this.attackDirX = this.facing;
+      this.attackDirY = 0;
+    }
+
     this.currentAttackId += 1;
     this.attackActiveUntil = time + HERO_ATTACK_ACTIVE_MS;
     this.attackUntil = time + HERO_ATTACK_DURATION_MS;
@@ -315,7 +344,24 @@ export class Hero extends Phaser.GameObjects.Container {
   }
 
   private updateAttackIndicator(time: number) {
-    this.attackIndicator.setVisible(this.isAttackActive(time));
+    const active = this.isAttackActive(time);
+    this.attackIndicator.setVisible(active);
+
+    if (!active) {
+      return;
+    }
+
+    if (this.attackDirY !== 0) {
+      this.attackIndicator.setSize(HERO_ATTACK_HEIGHT, HERO_ATTACK_RANGE);
+      const offsetY =
+        this.attackDirY > 0
+          ? HERO_HALF_HEIGHT + HERO_ATTACK_RANGE / 2
+          : -HERO_HALF_HEIGHT - HERO_ATTACK_RANGE / 2;
+      this.attackIndicator.setPosition(0, offsetY);
+    } else {
+      this.attackIndicator.setSize(HERO_ATTACK_RANGE, HERO_ATTACK_HEIGHT);
+      this.attackIndicator.setPosition(HERO_HALF_WIDTH + HERO_ATTACK_RANGE / 2, 0);
+    }
   }
 
   private playDamageFeedback(time: number) {
