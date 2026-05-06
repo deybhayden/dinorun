@@ -44,14 +44,8 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
     this.keys = {
       left: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
       right: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-      jump: [
-        keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
-        keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-      ],
-      shoot: [
-        keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.J),
-        keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT),
-      ],
+      jump: [keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W)],
+      shoot: [keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)],
     };
 
     scene.add.existing(this);

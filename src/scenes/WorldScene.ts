@@ -236,7 +236,7 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(101);
 
     this.statusText = this.add
-      .text(28, 87, 'Move: A/D or Arrows  Jump: W/Up/Space  Shoot: J/Shift', {
+      .text(28, 87, 'Move: A/D or Arrows  Jump: W/Up  Shoot: Space', {
         color: '#b8a890',
         fontFamily: 'Arial, sans-serif',
         fontSize: '14px',
@@ -328,7 +328,7 @@ export class WorldScene extends Phaser.Scene {
     if (this.gameOver || this.victory) {
       this.statusText.setText('Press R to restart');
     } else {
-      this.statusText.setText('Move: A/D or Arrows  Jump: W/Up/Space  Shoot: J/Shift');
+      this.statusText.setText('Move: A/D or Arrows  Jump: W/Up  Shoot: Space');
     }
   }
 
