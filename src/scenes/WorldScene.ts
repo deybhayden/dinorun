@@ -129,7 +129,7 @@ export class WorldScene extends Phaser.Scene {
       this.physics.add.overlap(
         this.projectiles,
         dino,
-        (proj, target) => {
+        (target, proj) => {
           if (this.gameOver || this.victory) return;
           if (!(proj instanceof Projectile) || !(target instanceof DinosaurEnemy)) return;
           if (!proj.active || !target.active || !target.isAlive) return;
